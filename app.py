@@ -1,66 +1,33 @@
 from flask import Flask, request, redirect
-import mysql.connector
-from datetime import datetime
-import os
+from urllib.parse import urlencode
 
 app = Flask(__name__)
 
-# Configurações do banco de dados
-DB_CONFIG = {
-    'host': '162.214.155.190',
-    'user': 'ddm_ia',
-    'password': 'o#G3AHP1O}dt',
-    'database': 'ddm_ddmadv',
-    'port': 3306
-}
-
-# URL de redirecionamento
-CHECKOUT_URL = 'https://ddmpay.ddmacordos.com/acesso/'
-
-
-def get_db_connection():
-    """Cria conexão com MySQL"""
-    return mysql.connector.connect(**DB_CONFIG)
+# URL base de redirecionamento
+CHECKOUT_BASE_URL = 'https://ddmpay.ddmacordos.com/acesso/'
 
 
 @app.route('/acesso', methods=['GET'])
 def acesso():
     """
-    Captura parâmetros UTM, salva no banco e redireciona para checkout
+    Captura parâmetros UTM e redireciona para DDMPay com os parâmetros intactos
     URL: /acesso/?par1=aaaa&par2=bbbb&par3=cc
-    """
-    try:
-        # Captura parâmetros da URL
-        par1 = request.args.get('par1', '')
-        par2 = request.args.get('par2', '')
-        par3 = request.args.get('par3', '')
-        
-        # Captura dados de contexto
-        ip = request.remote_addr
-        user_agent = request.headers.get('User-Agent', '')
-        url_full = request.url
-        
-        # Conecta ao banco e insere
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        sql = """
-        INSERT INTO links_ddmpay (data_hora, url, ip, user_agent, par1, par2, par3)
-        VALUES (NOW(), %s, %s, %s, %s, %s, %s)
-        """
-        
-        cursor.execute(sql, (url_full, ip, user_agent, par1, par2, par3))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        print(f"✅ Registro inserido: par1={par1}, par2={par2}, par3={par3}, ip={ip}")
-        
-    except Exception as e:
-        print(f"❌ Erro ao inserir no banco: {e}")
     
-    # Redireciona para checkout (com ou sem sucesso de gravação)
-    return redirect(CHECKOUT_URL)
+    DDMPay antigo já captura e salva automaticamente qualquer parâmetro após o ?
+    """
+    # Captura TODOS os parâmetros da URL
+    params = request.args.to_dict()
+    
+    # Constrói URL de redirecionamento com os parâmetros
+    if params:
+        checkout_url = CHECKOUT_BASE_URL + '?' + urlencode(params)
+    else:
+        checkout_url = CHECKOUT_BASE_URL
+    
+    print(f"📨 Redirecionando para: {checkout_url}")
+    
+    # Redireciona para checkout com os parâmetros
+    return redirect(checkout_url)
 
 
 @app.route('/health', methods=['GET'])
