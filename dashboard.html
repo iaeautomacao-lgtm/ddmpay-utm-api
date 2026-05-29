@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Métricas — Grupo DDM</title>
+    <meta name="description" content="Dashboard em tempo real para visualizar conversões, ROI e performance de campanhas.">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #333;
+            margin: 0;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        select, input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .refresh-btn {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: #5568d3;
+        }
+
+        /* Grid de Cards KPI */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .kpi-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        }
+
+        .kpi-label {
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .kpi-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .kpi-change {
+            font-size: 13px;
+            color: #4CAF50;
+        }
+
+        .kpi-change.negative {
+            color: #f44336;
+        }
+
+        /* Grid de Gráficos */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        canvas {
+            max-height: 400px;
+        }
+
+        /* Tabela de Conversões */
+        .table-container {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow-x: auto;
+        }
+
+        .table-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f9f9f9;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            color: #666;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge.pago {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge.pendente {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.cancelado {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-sms {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .badge-whatsapp {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .badge-email {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        /* Loading e Empty States */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        /* Responsivo */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+
+            .filter-group {
+                flex-direction: column;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px 12px;
+            }
+        }
+
+        .last-updated {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+        }
+
+        .status-online {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #4CAF50;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1>📊 Dashboard de Métricas</h1>
+                <div class="last-updated">
+                    <span class="status-online"></span>
+                    <span id="last-updated">Atualizando...</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="filter-group">
+                    <select id="canal-filter">
+                        <option value="">Todos os Canais</option>
+                        <option value="sms">SMS</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="email">E-mail</option>
+                        <option value="rcs">RCS</option>
+                    </select>
+                    <input type="date" id="data-inicio" value="">
+                    <input type="date" id="data-fim" value="">
+                </div>
+                <button class="refresh-btn" onclick="carregarDados()">🔄 Atualizar</button>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Cliques Totais</div>
+                <div class="kpi-value" id="total-cliques">0</div>
+                <div class="kpi-change" id="change-cliques">+0 esta semana</div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-label">Conversões</div>
+                <div class="kpi-value" id="total-conversoes">0</div>
+                <div class="kpi-change" id="change-conversoes">+0 esta semana</div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-label">Valor Total</div>
+                <div class="kpi-value" id="valor-total">R$ 0,00</div>
+                <div class="kpi-change" id="change-valor">+R$ 0,00 esta semana</div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-label">Taxa de Conversão</div>
+                <div class="kpi-value" id="taxa-conversao">0%</div>
+                <div class="kpi-change" id="change-taxa">Meta: 50%</div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-label">ROI Médio</div>
+                <div class="kpi-value" id="roi-medio">0%</div>
+                <div class="kpi-change" id="change-roi">Comparado ao mês anterior</div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-label">Ticket Médio</div>
+                <div class="kpi-value" id="ticket-medio">R$ 0,00</div>
+                <div class="kpi-change" id="change-ticket">Por transação</div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-container">
+                <div class="chart-title">📈 Cliques por Canal</div>
+                <canvas id="chartCliques"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">💰 Valor Arrecadado por Canal</div>
+                <canvas id="chartValor"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">📊 Taxa de Conversão por Canal</div>
+                <canvas id="chartTaxa"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">📅 Cliques vs Conversões (Últimos 7 dias)</div>
+                <canvas id="chartTendencia"></canvas>
+            </div>
+        </div>
+
+        <!-- Tabela de Conversões Recentes -->
+        <div class="table-container">
+            <div class="table-title">🔝 Conversões Recentes</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Cliente</th>
+                        <th>Canal</th>
+                        <th>Valor</th>
+                        <th>Status</th>
+                        <th>Campanha</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-conversoes">
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #999;">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                <p>Carregando dados...</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Configuração de cores
+        const CORES = {
+            sms: '#3B82F6',
+            whatsapp: '#10B981',
+            email: '#F59E0B',
+            rcs: '#8B5CF6'
+        };
+
+        // Instâncias de gráficos
+        let chartCliques, chartValor, chartTaxa, chartTendencia;
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            // Definir datas padrão (últimos 30 dias)
+            const hoje = new Date();
+            const trinta_dias_atras = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000);
+            
+            document.getElementById('data-inicio').valueAsDate = trinta_dias_atras;
+            document.getElementById('data-fim').valueAsDate = hoje;
+
+            carregarDados();
+
+            // Auto-refresh a cada 30 segundos
+            setInterval(carregarDados, 30000);
+        });
+
+        async function carregarDados() {
+            try {
+                document.getElementById('last-updated').textContent = 'Atualizando...';
+
+                // Simular carregamento de dados (em produção, fazer requisição à API)
+                const dados = await simularDadosMetricas();
+
+                atualizarKPIs(dados);
+                atualizarGraficos(dados);
+                atualizarTabela(dados);
+
+                document.getElementById('last-updated').textContent = 
+                    `✓ Atualizado em ${new Date().toLocaleTimeString('pt-BR')}`;
+            } catch (erro) {
+                console.error('Erro ao carregar dados:', erro);
+                document.getElementById('last-updated').textContent = '⚠️ Erro ao atualizar';
+            }
+        }
+
+        function atualizarKPIs(dados) {
+            const totalCliques = dados.resumo.total_cliques;
+            const totalConversoes = dados.resumo.total_conversoes;
+            const valorTotal = dados.resumo.valor_total;
+            const taxa = totalCliques > 0 ? ((totalConversoes / totalCliques) * 100).toFixed(1) : 0;
+            const roi = dados.resumo.roi_medio.toFixed(1);
+            const ticketMedio = totalConversoes > 0 ? (valorTotal / totalConversoes).toFixed(2) : 0;
+
+            document.getElementById('total-cliques').textContent = totalCliques.toLocaleString('pt-BR');
+            document.getElementById('total-conversoes').textContent = totalConversoes.toLocaleString('pt-BR');
+            document.getElementById('valor-total').textContent = `R$ ${valorTotal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('taxa-conversao').textContent = `${taxa}%`;
+            document.getElementById('roi-medio').textContent = `${roi}%`;
+            document.getElementById('ticket-medio').textContent = `R$ ${parseFloat(ticketMedio).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+            // Tendência (simulada)
+            document.getElementById('change-cliques').textContent = `+${Math.floor(totalCliques * 0.1)} esta semana`;
+            document.getElementById('change-conversoes').textContent = `+${Math.floor(totalConversoes * 0.1)} esta semana`;
+            document.getElementById('change-valor').textContent = `+R$ ${(valorTotal * 0.1).toLocaleString('pt-BR', {minimumFractionDigits: 2})} esta semana`;
+            document.getElementById('change-taxa').textContent = taxa > 50 ? '✓ Meta atingida' : `Faltam ${(50 - taxa).toFixed(1)}%`;
+        }
+
+        function atualizarGraficos(dados) {
+            const canaisDisponiveis = ['sms', 'whatsapp', 'email', 'rcs'];
+            const labels = canaisDisponiveis;
+            
+            // Dados por canal (simulados)
+            const cliques = canaisDisponiveis.map((canal, i) => Math.floor(Math.random() * 100) + 50);
+            const valores = canaisDisponiveis.map((canal, i) => Math.floor(Math.random() * 5000) + 1000);
+            const taxas = canaisDisponiveis.map((canal, i) => Math.floor(Math.random() * 70) + 10);
+
+            // Gráfico de Cliques
+            if (chartCliques) chartCliques.destroy();
+            chartCliques = new Chart(document.getElementById('chartCliques'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Cliques',
+                        data: cliques,
+                        backgroundColor: labels.map(l => CORES[l]),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // Gráfico de Valores
+            if (chartValor) chartValor.destroy();
+            chartValor = new Chart(document.getElementById('chartValor'), {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: valores,
+                        backgroundColor: labels.map(l => CORES[l])
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true
+                }
+            });
+
+            // Gráfico de Taxa
+            if (chartTaxa) chartTaxa.destroy();
+            chartTaxa = new Chart(document.getElementById('chartTaxa'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Taxa (%)',
+                        data: taxas,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        pointRadius: 6,
+                        pointBackgroundColor: '#667eea',
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // Gráfico de Tendência
+            const diasUltimos7 = [];
+            const cliquesUltimos7 = [];
+            const conversoesUltimos7 = [];
+            
+            for (let i = 6; i >= 0; i--) {
+                const data = new Date();
+                data.setDate(data.getDate() - i);
+                diasUltimos7.push(data.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}));
+                cliquesUltimos7.push(Math.floor(Math.random() * 80) + 20);
+                conversoesUltimos7.push(Math.floor(Math.random() * 40) + 10);
+            }
+
+            if (chartTendencia) chartTendencia.destroy();
+            chartTendencia = new Chart(document.getElementById('chartTendencia'), {
+                type: 'line',
+                data: {
+                    labels: diasUltimos7,
+                    datasets: [
+                        {
+                            label: 'Cliques',
+                            data: cliquesUltimos7,
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Conversões',
+                            data: conversoesUltimos7,
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true
+                }
+            });
+        }
+
+        function atualizarTabela(dados) {
+            const tbody = document.getElementById('tabela-conversoes');
+            
+            if (!dados.conversoes || dados.conversoes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #999;">Nenhuma conversão registrada</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = dados.conversoes.slice(0, 10).map(c => `
+                <tr>
+                    <td>${new Date(c.data).toLocaleDateString('pt-BR')}</td>
+                    <td>${c.cliente_id.substring(0, 11)}</td>
+                    <td><span class="badge badge-${c.canal}">${c.canal.toUpperCase()}</span></td>
+                    <td>R$ ${parseFloat(c.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td><span class="badge ${c.status}">${c.status.toUpperCase()}</span></td>
+                    <td>${c.campanha || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Simular dados de métricas (substituir por chamada à API real)
+        async function simularDadosMetricas() {
+            return {
+                resumo: {
+                    total_cliques: 2500,
+                    total_conversoes: 875,
+                    valor_total: 45000,
+                    roi_medio: 285,
+                    taxa_conversao_media: 35
+                },
+                conversoes: Array.from({length: 20}, (_, i) => ({
+                    data: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
+                    cliente_id: `${Math.floor(Math.random() * 90000000000) + 10000000000}`,
+                    canal: ['sms', 'whatsapp', 'email', 'rcs'][Math.floor(Math.random() * 4)],
+                    valor: Math.floor(Math.random() * 5000) + 100,
+                    status: ['pago', 'pendente', 'cancelado'][Math.floor(Math.random() * 3)],
+                    campanha: ['Cobrança Maio', 'Cobrança Junho', 'Cobrança Julho'][Math.floor(Math.random() * 3)]
+                }))
+            };
+        }
+    </script>
+</body>
+</html>
