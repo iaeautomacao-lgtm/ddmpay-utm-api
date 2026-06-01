@@ -1,4 +1,4 @@
-from flask import Flask, request, redirect, jsonify
+from flask import Flask, request, redirect, jsonify, send_file
 from urllib.parse import urlencode
 import json
 import os
@@ -47,6 +47,16 @@ def extract_param_from_url(url, param_name):
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
+
+@app.route('/')
+def root():
+    return redirect('/dashboard')
+
+
+@app.route('/dashboard')
+def dashboard():
+    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard.html'))
+
 
 @app.route('/health', methods=['GET'])
 def health():
