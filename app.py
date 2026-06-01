@@ -140,13 +140,19 @@ def api_metricas():
         
         cursor = cnx.cursor(dictionary=True)
         
-        # QUERY 1: Total de cliques no período
+        # QUERY 1: Total de cliques no período + clientes únicos
         query_total = """
-            SELECT COUNT(*) as total FROM ddm_ddmadv.links_ddmpay
+            SELECT
+                COUNT(*) as total,
+                COUNT(DISTINCT SUBSTRING_INDEX(SUBSTRING_INDEX(url, 'par1=', -1), '&', 1)) as total_unicos
+            FROM ddm_ddmadv.links_ddmpay
             WHERE DATE(data_hora) BETWEEN %s AND %s
+            AND url LIKE '%par1=%'
         """
         cursor.execute(query_total, (data_inicio, data_fim))
-        total_cliques = cursor.fetchone()['total']
+        row_total = cursor.fetchone()
+        total_cliques = row_total['total']
+        total_cliques_unicos = row_total['total_unicos']
         
         # QUERY 2: Cliques por canal (par2)
         query_canais = """
@@ -199,6 +205,7 @@ def api_metricas():
             },
             'metricas': {
                 'total_cliques': total_cliques,
+                'total_cliques_unicos': total_cliques_unicos,
                 'por_canal': por_canal,
                 'volume_por_canal': {},
                 'total_acordos': 0,

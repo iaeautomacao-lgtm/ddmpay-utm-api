@@ -502,11 +502,11 @@
         <!-- KPI Cards -->
         <div class="kpi-grid">
             <div class="kpi-card glass-panel">
-                <div class="kpi-icon">🖱️</div>
-                <div class="kpi-label">Cliques Rastreados</div>
+                <div class="kpi-icon">👤</div>
+                <div class="kpi-label">Clientes Únicos</div>
                 <div class="kpi-value" id="total-disparos">0</div>
                 <div class="kpi-change">
-                    <span class="change-neutral" id="change-disparos">Total de cliques no link</span>
+                    <span class="change-neutral" id="change-disparos">Clientes distintos que clicaram</span>
                 </div>
             </div>
 
@@ -917,7 +917,7 @@
 
                 return {
                     resumo: {
-                        disparos: m.total_cliques,
+                        disparos: m.total_cliques_unicos || 0,
                         cliques: m.total_cliques,
                         acordos: m.total_acordos || 0,
                         valor_ddmpay: m.valor_total || 0
