@@ -1,0 +1,221 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Links Rastreáveis — Grupo DDM</title>
+    <meta name="description" content="Crie e gerencie parâmetros de rastreamento (par1, par2, par3) integrados ao ecossistema DDMPay e n8n.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="grid-bg"></div>
+
+    <div class="app-container">
+        <!-- Header corporativo DDM -->
+        <header class="main-header">
+            <div class="logo-area">
+                <div class="ddm-logo">
+                    <span class="ddm-logo-text">DDM</span>
+                </div>
+                <div class="logo-divider"></div>
+                <span class="app-brand-name">Grupo DDM</span>
+            </div>
+            <div class="header-badge">UTM Generator</div>
+        </header>
+
+        <!-- Títulos solicitados pelo usuário -->
+        <div class="title-section">
+            <h1 class="main-title"><b>O jeito mais fácil de gerar UTM</b></h1>
+            <p class="main-subtitle">Crie e gerencie códigos de rastreamento para suas campanhas ativos no ecossistema atual.</p>
+        </div>
+
+        <!-- Abas de Navegação -->
+        <div class="tabs-container">
+            <button type="button" class="tab-btn active" data-target="tab-individual">Criação Individual</button>
+            <button type="button" class="tab-btn" data-target="tab-lote">Criação em Lote</button>
+        </div>
+
+        <!-- Main Wrapper -->
+        <div class="content-wrapper">
+            
+            <!-- ABA CRIAÇÃO INDIVIDUAL -->
+            <div id="tab-individual" class="tab-content active">
+                
+                <!-- Barra de Ações Rápidas -->
+                <div class="action-bar">
+                    <div class="dropdown-wrapper">
+                        <button type="button" id="btn-models" class="btn btn-secondary btn-dropdown">
+                            <span>Modelos de Canal</span>
+                            <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div id="models-dropdown" class="dropdown-menu">
+                            <div class="dropdown-group">CANAL DE DISPARO (par2)</div>
+                            <button type="button" class="dropdown-item" data-medium="whatsapp">WhatsApp</button>
+                            <button type="button" class="dropdown-item" data-medium="sms">SMS</button>
+                            <button type="button" class="dropdown-item" data-medium="rcs">RCS</button>
+                            <button type="button" class="dropdown-item" data-medium="email">E-mail</button>
+                        </div>
+                    </div>
+
+                    <button type="button" id="btn-clear-individual" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        <span>Limpar Campos</span>
+                    </button>
+
+                    <div class="right-actions">
+                        <button type="button" id="btn-save-utm" class="btn btn-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                            <span>Salvar Link</span>
+                        </button>
+                        <button type="button" class="btn btn-icon" title="Configurações">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Formulário Individual com as Regras par1, par2, par3 -->
+                <div class="panel form-panel">
+                    <form id="individual-form" class="grid-form">
+                        <div class="field-group" style="grid-column: span 2;">
+                            <label for="ind-url">URL de Destino <span class="req">*</span></label>
+                            <input type="url" id="ind-url" placeholder="https://ddmpay-utm-api.onrender.com/acesso" value="https://ddmpay-utm-api.onrender.com/acesso" required>
+                        </div>
+                        
+                        <div class="field-group">
+                            <label for="ind-source">Identificador do Aluno (par1) <span class="req">*</span></label>
+                            <input type="text" id="ind-source" placeholder="Ex: CPF ou Matrícula" required>
+                        </div>
+
+                        <div class="field-group">
+                            <label for="ind-medium">Canal de Disparo (par2) <span class="req">*</span></label>
+                            <input type="text" id="ind-medium" placeholder="Ex: sms, whatsapp, rcs" required>
+                        </div>
+
+                        <div class="field-group" style="grid-column: span 2;">
+                            <label for="ind-campaign">Campanha / Lote (par3) <span class="req">*</span></label>
+                            <input type="text" id="ind-campaign" placeholder="Ex: cobranca_maio_lote1" required>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Painel de Exibição do Link Gerado -->
+                <div class="output-container">
+                    <label class="output-label">URL Parametrizada Gerada <span class="sub-label">(clique para copiar)</span></label>
+                    <div class="output-box" id="btn-copy-individual">
+                        <span id="output-link">Preencha os campos para gerar sua URL parametrizada</span>
+                        <button type="button" class="copy-icon-btn" title="Copiar URL">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Histórico / Links Salvos -->
+                <div class="saved-section">
+                    <div class="saved-empty" id="saved-empty-state">
+                        <div class="empty-icon-wrapper">
+                            <svg class="blue-empty-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        </div>
+                        <h3>Nenhum link salvo</h3>
+                        <p>Os links salvos aparecerão aqui. Crie e salve o seu primeiro link de campanha acima.</p>
+                    </div>
+                    
+                    <div class="saved-list-container d-none" id="saved-list-container">
+                        <div class="saved-list-header">
+                            <h3>Links Salvos</h3>
+                            <button type="button" id="btn-clear-saved" class="btn-clear-all">Limpar Tudo</button>
+                        </div>
+                        <div class="saved-cards" id="saved-cards-list">
+                            <!-- Inserido dinamicamente -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ABA CRIAÇÃO EM LOTE -->
+            <div id="tab-lote" class="tab-content">
+                
+                <div class="batch-header-bar">
+                    <div class="dropdown-wrapper">
+                        <button type="button" id="btn-models-batch" class="btn btn-secondary btn-dropdown">
+                            <span>Modelos de Canal</span>
+                            <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div id="models-dropdown-batch" class="dropdown-menu">
+                            <div class="dropdown-group">CANAL DE DISPARO (par2)</div>
+                            <button type="button" class="dropdown-item-batch" data-medium="whatsapp">WhatsApp</button>
+                            <button type="button" class="dropdown-item-batch" data-medium="sms">SMS</button>
+                            <button type="button" class="dropdown-item-batch" data-medium="rcs">RCS</button>
+                            <button type="button" class="dropdown-item-batch" data-medium="email">E-mail</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-batch-text">
+                        <span>ℹ️ Como funciona a criação em lote?</span>
+                    </div>
+                </div>
+
+                <!-- Formulário em Lote (Áreas de Texto) adaptado para par1, par2, par3 -->
+                <div class="panel form-panel">
+                    <form id="batch-form" class="grid-form-batch">
+                        
+                        <div class="field-group" style="grid-column: span 2;">
+                            <label for="batch-urls">URLs de Destino <span class="req">*</span></label>
+                            <textarea id="batch-urls" placeholder="https://ddmpay-utm-api.onrender.com/acesso" required>https://ddmpay-utm-api.onrender.com/acesso</textarea>
+                            <span class="field-hint">Normalmente https://ddmpay-utm-api.onrender.com/acesso</span>
+                        </div>
+
+                        <div class="field-group">
+                            <label for="batch-sources">Identificadores dos Alunos (par1) <span class="req">*</span></label>
+                            <textarea id="batch-sources" placeholder="CPF_ALUNO1&#10;CPF_ALUNO2&#10;CPF_ALUNO3" required></textarea>
+                            <span class="field-hint">Insira os CPFs ou Matrículas (um por linha).</span>
+                        </div>
+
+                        <div class="field-group">
+                            <label for="batch-mediums">Canais de Disparo (par2) <span class="req">*</span></label>
+                            <textarea id="batch-mediums" placeholder="sms&#10;whatsapp&#10;rcs" required></textarea>
+                            <span class="field-hint">Insira os canais de disparo (um por linha).</span>
+                        </div>
+
+                        <div class="field-group" style="grid-column: span 2;">
+                            <label for="batch-campaigns">Campanhas / Lotes (par3) <span class="req">*</span></label>
+                            <textarea id="batch-campaigns" placeholder="cobranca_maio_lote1&#10;cobranca_maio_lote2" required></textarea>
+                            <span class="field-hint">Insira os nomes dos lotes de campanha (um por linha).</span>
+                        </div>
+
+                    </form>
+
+                    <div class="batch-actions">
+                        <button type="button" id="btn-generate-batch" class="btn btn-primary btn-glow">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path></svg>
+                            <span>Gerar URLs em Lote</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Painel de Resultados em Lote -->
+                <div class="batch-results-container d-none" id="batch-results-area">
+                    <div class="batch-results-header">
+                        <h3>URLs Geradas (<span id="batch-count">0</span>)</h3>
+                        <div class="batch-result-actions">
+                            <button type="button" id="btn-copy-all-batch" class="btn btn-secondary">Copiar Todas</button>
+                            <button type="button" id="btn-download-csv" class="btn btn-outline">Exportar CSV</button>
+                        </div>
+                    </div>
+                    <div class="batch-results-list" id="batch-results-list">
+                        <!-- Inserido dinamicamente -->
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
+

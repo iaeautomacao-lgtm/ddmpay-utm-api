@@ -673,22 +673,27 @@
 
         function atualizarKPIs(dados) {
             const { disparos, cliques, acordos, valor_ddmpay } = dados.resumo;
-            
-            const taxa = cliques > 0 ? ((acordos / cliques) * 100).toFixed(1) : 0;
+
+            const taxa = cliques > 0 && acordos > 0 ? ((acordos / cliques) * 100).toFixed(1) : 0;
             const ticketMedio = acordos > 0 ? (valor_ddmpay / acordos).toFixed(2) : 0;
 
             animarValor('total-disparos', disparos);
             animarValor('total-cliques', cliques);
             animarValor('total-acordos', acordos);
-            
-            document.getElementById('valor-ddmpay').textContent = `R$ ${valor_ddmpay.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
-            document.getElementById('taxa-conversao').textContent = `${taxa}%`;
-            document.getElementById('ticket-medio').textContent = `R$ ${parseFloat(ticketMedio).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
 
-            // Tendências simuladas
-            document.getElementById('change-cliques').textContent = `+${Math.floor(cliques * 0.08)} (8%)`;
-            document.getElementById('change-acordos').textContent = `+${Math.floor(Math.random() * 15) + 2}`;
-            document.getElementById('change-valor').textContent = `+R$ ${(valor_ddmpay * 0.12).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('valor-ddmpay').textContent = valor_ddmpay > 0
+                ? `R$ ${valor_ddmpay.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+                : 'Aguardando webhook';
+            document.getElementById('taxa-conversao').textContent = taxa > 0 ? `${taxa}%` : 'Aguardando webhook';
+            document.getElementById('ticket-medio').textContent = ticketMedio > 0
+                ? `R$ ${parseFloat(ticketMedio).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+                : 'Aguardando webhook';
+
+            document.getElementById('change-cliques').textContent = `Total de cliques no período`;
+            document.getElementById('change-acordos').textContent = acordos > 0 ? `${acordos} acordos confirmados` : 'Aguardando webhook DDMPay';
+            document.getElementById('change-valor').textContent = valor_ddmpay > 0
+                ? `R$ ${valor_ddmpay.toLocaleString('pt-BR', {minimumFractionDigits: 2})} confirmados`
+                : 'Aguardando webhook DDMPay';
         }
 
         function animarValor(id, valorFinal) {
@@ -803,11 +808,12 @@
                 }
             });
 
-            // 3. Chart Volume por Canal (Bar)
+            // 3. Chart Volume por Canal (Bar) - real quando webhook ativo
             const dadosVolume = canais.map(canal => {
-                // Placeholder - será atualizado quando webhook funcionar
-                const key = canal.toUpperCase();
-                return Math.floor(Math.random() * 15000) + 2000;
+                const canalNormalizado = canal === 'email' ? 'E-mail' :
+                                         canal === 'whatsapp' ? 'WhatsApp' :
+                                         canal === 'sms' ? 'SMS' : 'RCS';
+                return dados.volume_por_canal ? (dados.volume_por_canal[canalNormalizado] || 0) : 0;
             });
             
             if (chartVolumeCanal) chartVolumeCanal.destroy();
@@ -908,22 +914,19 @@
                 
                 const apiData = await response.json();
                 
-                // Transformar dados da API para formato esperado pelo dashboard
-                const totalCliques = apiData.metricas.total_cliques;
-                
-                // Calcular estáticas dos canais
-                const porCanal = apiData.metricas.por_canal;
-                
+                const m = apiData.metricas;
+
                 return {
                     resumo: {
-                        disparos: totalCliques,      // Cliques = disparos
-                        cliques: totalCliques,       // Total de cliques
-                        acordos: 0,                  // Será preenchido quando webhook funcionar
-                        valor_ddmpay: 0              // Será preenchido quando webhook funcionar
+                        disparos: m.total_cliques,
+                        cliques: m.total_cliques,
+                        acordos: m.total_acordos || 0,
+                        valor_ddmpay: m.valor_total || 0
                     },
-                    por_canal: porCanal,
-                    tendencia: apiData.metricas.tendencia_ultimos_7_dias,
-                    acordos: []                      // Será preenchido quando webhook funcionar
+                    por_canal: m.por_canal || {},
+                    volume_por_canal: m.volume_por_canal || {},
+                    tendencia: m.tendencia_ultimos_7_dias || [],
+                    acordos: m.acordos || []
                 };
                 
             } catch (erro) {
@@ -933,23 +936,13 @@
             }
         }
         
-        // Função de demonstração (fallback)
         async function simularDadosMetricas() {
             return {
-                resumo: {
-                    disparos: 15420,
-                    cliques: 3850,
-                    acordos: 642,
-                    valor_ddmpay: 128450.50
-                },
-                acordos: Array.from({length: 8}, (_, i) => ({
-                    data: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000),
-                    aluno_id: `ALU-${Math.floor(Math.random() * 90000) + 10000}`,
-                    canal: ['whatsapp', 'sms', 'email', 'rcs'][Math.floor(Math.random() * 4)],
-                    valor: Math.floor(Math.random() * 800) + 50,
-                    status: ['pago', 'pago', 'pago', 'pendente', 'pendente', 'cancelado'][Math.floor(Math.random() * 6)],
-                    campanha: ['Retenção Q3', 'Cobrança Atrasados', 'Renovação Semestral'][Math.floor(Math.random() * 3)]
-                })).sort((a,b) => b.data - a.data)
+                resumo: { disparos: 0, cliques: 0, acordos: 0, valor_ddmpay: 0 },
+                por_canal: {},
+                volume_por_canal: {},
+                tendencia: [],
+                acordos: []
             };
         }
     </script>

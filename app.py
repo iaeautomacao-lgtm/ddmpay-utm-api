@@ -58,6 +58,11 @@ def dashboard():
     return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard.html'))
 
 
+@app.route('/utm')
+def utm():
+    return send_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'utm.html'))
+
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check"""
@@ -85,21 +90,24 @@ def acesso():
 def webhook_pagamento():
     """Recebe confirmação de pagamento do DDMPay"""
     try:
-        data = request.get_json()
-        
-        print(f"[WEBHOOK] Pagamento recebido:")
-        print(f"  Cliente: {data.get('cliente_id')}")
-        print(f"  Valor: R$ {data.get('valor')}")
-        print(f"  Status: {data.get('status')}")
-        
-        return {
+        data = request.get_json(force=True) or {}
+
+        cliente_id = data.get('cliente_id', 'desconhecido')
+        valor = data.get('valor', 0)
+        status = data.get('status', 'desconhecido')
+        canal = data.get('canal', '')
+        campanha = data.get('campanha', '')
+
+        print(f"[WEBHOOK] Pagamento recebido | cliente={cliente_id} valor=R${valor} status={status} canal={canal} campanha={campanha}")
+
+        return jsonify({
             'status': 'recebido',
-            'mensagem': 'Pagamento processado'
-        }, 200
-        
+            'mensagem': 'Evento registrado. Persistência ativada após criação das tabelas.'
+        }), 200
+
     except Exception as e:
         print(f"[WEBHOOK] Erro: {e}")
-        return {'status': 'erro', 'mensagem': str(e)}, 400
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 400
 
 
 @app.route('/api/metricas', methods=['GET'])
@@ -192,6 +200,9 @@ def api_metricas():
             'metricas': {
                 'total_cliques': total_cliques,
                 'por_canal': por_canal,
+                'volume_por_canal': {},
+                'total_acordos': 0,
+                'valor_total': 0,
                 'tendencia_ultimos_7_dias': [
                     {
                         'data': str(row['data']),
