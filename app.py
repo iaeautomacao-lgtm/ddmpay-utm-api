@@ -93,17 +93,32 @@ def webhook_pagamento():
         data = request.get_json(force=True) or {}
 
         cliente_id = data.get('cliente_id', 'desconhecido')
-        valor = data.get('valor', 0)
-        status = data.get('status', 'desconhecido')
+        valor = float(data.get('valor', 0))
+        status = data.get('status', 'pendente')
         canal = data.get('canal', '')
         campanha = data.get('campanha', '')
 
-        print(f"[WEBHOOK] Pagamento recebido | cliente={cliente_id} valor=R${valor} status={status} canal={canal} campanha={campanha}")
+        print(f"[WEBHOOK] cliente={cliente_id} valor=R${valor} status={status} canal={canal} campanha={campanha}")
 
-        return jsonify({
-            'status': 'recebido',
-            'mensagem': 'Evento registrado. Persistência ativada após criação das tabelas.'
-        }), 200
+        cnx = get_db_connection()
+        if cnx:
+            try:
+                cursor = cnx.cursor()
+                cursor.execute("""
+                    INSERT INTO ddm_ddmadv.conversoes
+                        (cliente_id, valor, status, canal, campanha, data_pagamento)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                """, (cliente_id, valor, status, canal, campanha))
+                cnx.commit()
+                cursor.close()
+                cnx.close()
+                print(f"[WEBHOOK] Salvo em conversoes.")
+            except Exception as db_err:
+                print(f"[WEBHOOK] Nao foi possivel salvar (tabela existe?): {db_err}")
+        else:
+            print("[WEBHOOK] Sem conexao com banco.")
+
+        return jsonify({'status': 'recebido', 'cliente_id': cliente_id}), 200
 
     except Exception as e:
         print(f"[WEBHOOK] Erro: {e}")
@@ -192,10 +207,56 @@ def api_metricas():
         """
         cursor.execute(query_tendencia)
         tendencia = cursor.fetchall()
-        
+
+        # QUERY 4: Acordos e valor (tabela conversoes — se existir)
+        total_acordos = 0
+        valor_total = 0.0
+        volume_por_canal = {}
+        ultimos_acordos = []
+        try:
+            cursor.execute("""
+                SELECT COUNT(*) as total, COALESCE(SUM(valor), 0) as valor_total
+                FROM ddm_ddmadv.conversoes
+                WHERE status = 'pago'
+                AND DATE(data_pagamento) BETWEEN %s AND %s
+            """, (data_inicio, data_fim))
+            row_conv = cursor.fetchone()
+            total_acordos = row_conv['total']
+            valor_total = float(row_conv['valor_total'])
+
+            cursor.execute("""
+                SELECT canal, COUNT(*) as acordos, COALESCE(SUM(valor), 0) as valor
+                FROM ddm_ddmadv.conversoes
+                WHERE status = 'pago'
+                AND DATE(data_pagamento) BETWEEN %s AND %s
+                GROUP BY canal
+            """, (data_inicio, data_fim))
+            volume_por_canal = {row['canal']: float(row['valor']) for row in cursor.fetchall()}
+
+            cursor.execute("""
+                SELECT cliente_id, canal, campanha, valor, status, data_pagamento as data
+                FROM ddm_ddmadv.conversoes
+                WHERE DATE(data_pagamento) BETWEEN %s AND %s
+                ORDER BY data_pagamento DESC
+                LIMIT 20
+            """, (data_inicio, data_fim))
+            ultimos_acordos = [
+                {
+                    'aluno_id': r['cliente_id'],
+                    'canal': r['canal'] or '',
+                    'campanha': r['campanha'] or '',
+                    'valor': float(r['valor']),
+                    'status': r['status'],
+                    'data': str(r['data'])
+                }
+                for r in cursor.fetchall()
+            ]
+        except Exception:
+            pass  # tabela conversoes ainda nao existe
+
         cursor.close()
         cnx.close()
-        
+
         # Formatar resposta
         resposta = {
             'periodo': {
@@ -207,9 +268,10 @@ def api_metricas():
                 'total_cliques': total_cliques,
                 'total_cliques_unicos': total_cliques_unicos,
                 'por_canal': por_canal,
-                'volume_por_canal': {},
-                'total_acordos': 0,
-                'valor_total': 0,
+                'volume_por_canal': volume_por_canal,
+                'total_acordos': total_acordos,
+                'valor_total': valor_total,
+                'acordos': ultimos_acordos,
                 'tendencia_ultimos_7_dias': [
                     {
                         'data': str(row['data']),
