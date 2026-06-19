@@ -107,8 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CRIAÇÃO INDIVIDUAL LOGIC ---
     const buildIndividualURL = () => {
-        // URL padrão do Render (pode ser customizada se preferir)
-        let baseURL = indUrl.value.trim() || 'https://ddmpay-utm-api.onrender.com/acesso';
+        // URL padrão do DDMPay (domínio que GRAVA o clique em links_ddmpay)
+        let baseURL = indUrl.value.trim() || 'https://ddmpay.ddmacordos.com/acesso/';
         
         if (!baseURL) {
             resetIndividualUI();

@@ -249,7 +249,7 @@ DROP VIEW ddm_ddmadv.vw_ddmpay_funil_v4;
 - Modelos rápidos de canal (WhatsApp/SMS/RCS/E-mail).
 - Salva links no `localStorage` (chave `ddm_saved_utms`); copiar, remover, exportar CSV.
 
-> ⚠️ **Inconsistência conhecida:** a URL-base padrão do gerador é `https://ddmpay-utm-api.onrender.com/acesso` (Render). Mas quem **grava** o clique em `links_ddmpay` é o **domínio DDMPay** (`https://ddmpay.ddmacordos.com/acesso/`). Os links distribuídos devem apontar para o domínio DDMPay, ou o clique não é persistido.
+> ✅ **URL-base padrão:** `https://ddmpay.ddmacordos.com/acesso/` (domínio DDMPay) — é quem **grava** o clique em `links_ddmpay`. Não usar a URL do Render como destino do link, pois `/acesso` no Render apenas redireciona (não persiste).
 
 ### 7.2 Dashboard — `dashboard.html`
 - Auto-refresh a cada 30 s; filtros de data e canal.
