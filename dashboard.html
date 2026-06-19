@@ -534,8 +534,7 @@
                 <div class="kpi-label">Pagamentos DDMPay</div>
                 <div class="kpi-value" id="valor-ddmpay">R$ 0,00</div>
                 <div class="kpi-change">
-                    <span class="change-positive" id="change-valor">R$ 0,00</span>
-                    <span class="change-neutral">em pagamentos confirmados</span>
+                    <span class="change-neutral" id="change-valor">Aguardando pagamentos</span>
                 </div>
             </div>
 
@@ -617,6 +616,50 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- Quebra por Campanha -->
+        <div class="table-container glass-panel" style="margin-top:32px;">
+            <div class="table-header">
+                <h3 class="table-title">🎯 Desempenho por Campanha (par3)</h3>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Campanha</th>
+                        <th>Cliques</th>
+                        <th>Usuários Únicos</th>
+                        <th>Com Acordo</th>
+                        <th>Pagaram</th>
+                        <th>Valor Pago (R$)</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-campanha">
+                    <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Quebra por Canal -->
+        <div class="table-container glass-panel" style="margin-top:32px;">
+            <div class="table-header">
+                <h3 class="table-title">📱 Desempenho por Canal (par2)</h3>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Canal</th>
+                        <th>Cliques</th>
+                        <th>Usuários Únicos</th>
+                        <th>Com Acordo</th>
+                        <th>Pagaram</th>
+                        <th>Valor Pago (R$)</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-canal">
+                    <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -661,6 +704,7 @@
                 atualizarKPIs(dados);
                 atualizarGraficos(dados);
                 atualizarTabela(dados);
+                atualizarQuebras(dados);
 
                 document.getElementById('last-updated').innerHTML = `Sincronizado às ${new Date().toLocaleTimeString('pt-BR')}`;
                 btnAtualizar.style.opacity = '1';
@@ -671,10 +715,10 @@
         }
 
         function atualizarKPIs(dados) {
-            const { disparos, cliques, acordos, valor_ddmpay } = dados.resumo;
+            const { disparos, cliques, acordos, pagaram, valor_ddmpay, ticket_medio } = dados.resumo;
 
-            const taxa = cliques > 0 && acordos > 0 ? ((acordos / cliques) * 100).toFixed(1) : 0;
-            const ticketMedio = acordos > 0 ? (valor_ddmpay / acordos).toFixed(2) : 0;
+            // Taxa de acordos = usuarios com acordo / usuarios unicos que clicaram (funil real)
+            const taxa = disparos > 0 ? ((acordos / disparos) * 100).toFixed(1) : 0;
 
             animarValor('total-disparos', disparos);
             animarValor('total-cliques', cliques);
@@ -682,17 +726,18 @@
 
             document.getElementById('valor-ddmpay').textContent = valor_ddmpay > 0
                 ? `R$ ${valor_ddmpay.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
-                : 'Aguardando webhook';
-            document.getElementById('taxa-conversao').textContent = taxa > 0 ? `${taxa}%` : 'Aguardando webhook';
-            document.getElementById('ticket-medio').textContent = ticketMedio > 0
-                ? `R$ ${parseFloat(ticketMedio).toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
-                : 'Aguardando webhook';
+                : 'R$ 0,00';
+            document.getElementById('taxa-conversao').textContent = disparos > 0 ? `${taxa}%` : '0%';
+            document.getElementById('ticket-medio').textContent = ticket_medio > 0
+                ? `R$ ${ticket_medio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
+                : 'R$ 0,00';
 
             document.getElementById('change-cliques').textContent = `Total de cliques no período`;
-            document.getElementById('change-acordos').textContent = acordos > 0 ? `${acordos} acordos confirmados` : 'Aguardando webhook DDMPay';
-            document.getElementById('change-valor').textContent = valor_ddmpay > 0
-                ? `R$ ${valor_ddmpay.toLocaleString('pt-BR', {minimumFractionDigits: 2})} confirmados`
-                : 'Aguardando webhook DDMPay';
+            document.getElementById('change-acordos').textContent = acordos > 0 ? `${acordos} usuários com acordo` : 'Nenhum acordo cruzado no período';
+            document.getElementById('change-taxa').textContent = disparos > 0 ? `${acordos} de ${disparos} usuários fecharam` : 'Baseado em usuários únicos';
+            document.getElementById('change-valor').textContent = pagaram > 0
+                ? `${pagaram} usuários pagaram`
+                : 'Nenhum pagamento no período';
         }
 
         function animarValor(id, valorFinal) {
@@ -743,15 +788,8 @@
                     return data.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
                 });
                 dCliques = datas.map(d => tendenciaMap[d]);
-            } else {
-                // Fallback para dados aleatórios se não houver tendência
-                for (let i = 6; i >= 0; i--) {
-                    const d = new Date();
-                    d.setDate(d.getDate() - i);
-                    dias.push(d.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'}));
-                    dCliques.push(Math.floor(Math.random() * 300) + 100);
-                }
             }
+            // Sem dados reais => gráfico vazio (nada mockado)
 
             if (chartTendencia) chartTendencia.destroy();
             chartTendencia = new Chart(document.getElementById('chartTendencia'), {
@@ -778,14 +816,13 @@
                 }
             });
 
-            // 2. Chart Acordos por Canal (Doughnut) - USANDO DADOS REAIS
+            // 2. Chart Acordos por Canal (Doughnut) - usuarios com acordo por canal (VIEW)
+            const acordosCanal = dados.acordos_por_canal || {};
             const dadosAcordos = canais.map(canal => {
-                const key = canal.toUpperCase();
-                // Normalizar nomes dos canais
-                const canalNormalizado = canal === 'email' ? 'E-mail' : 
-                                         canal === 'whatsapp' ? 'WhatsApp' : 
+                const canalNormalizado = canal === 'email' ? 'E-mail' :
+                                         canal === 'whatsapp' ? 'WhatsApp' :
                                          canal === 'sms' ? 'SMS' : 'RCS';
-                return dados.por_canal[canalNormalizado] || 0;
+                return acordosCanal[canalNormalizado] || 0;
             });
             
             if (chartAcordosCanal) chartAcordosCanal.destroy();
@@ -897,6 +934,32 @@
             `}).join('');
         }
 
+        function atualizarQuebras(dados) {
+            renderQuebra('tabela-campanha', dados.por_campanha || {}, 'Nenhuma campanha no período');
+            renderQuebra('tabela-canal', dados.por_canal_detalhe || {}, 'Nenhum canal no período');
+        }
+
+        function renderQuebra(tbodyId, mapa, vazioMsg) {
+            const tbody = document.getElementById(tbodyId);
+            const linhas = Object.entries(mapa);
+            if (linhas.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">${vazioMsg}</td></tr>`;
+                return;
+            }
+            // ordena por valor pago desc, depois cliques desc
+            linhas.sort((a, b) => (b[1].valor_pago - a[1].valor_pago) || (b[1].cliques - a[1].cliques));
+            tbody.innerHTML = linhas.map(([nome, d]) => `
+                <tr>
+                    <td style="font-weight:600;">${nome}</td>
+                    <td>${(d.cliques || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.usuarios || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.com_acordo || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.pagaram || 0).toLocaleString('pt-BR')}</td>
+                    <td style="font-weight:600;">R$ ${(d.valor_pago || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                </tr>
+            `).join('');
+        }
+
         // Simulação de Dados - SUBSTITUÍDO POR DADOS REAIS DO BANCO
         async function carregarMetricasReais() {
             try {
@@ -920,10 +983,15 @@
                         disparos: m.total_cliques_unicos || 0,
                         cliques: m.total_cliques,
                         acordos: m.total_acordos || 0,
-                        valor_ddmpay: m.valor_total || 0
+                        pagaram: m.total_pagaram || 0,
+                        valor_ddmpay: m.valor_total || 0,
+                        ticket_medio: m.ticket_medio || 0
                     },
                     por_canal: m.por_canal || {},
+                    acordos_por_canal: m.acordos_por_canal || {},
                     volume_por_canal: m.volume_por_canal || {},
+                    por_canal_detalhe: m.por_canal_detalhe || {},
+                    por_campanha: m.por_campanha || {},
                     tendencia: m.tendencia_ultimos_7_dias || [],
                     acordos: m.acordos || []
                 };

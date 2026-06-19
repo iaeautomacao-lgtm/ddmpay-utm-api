@@ -182,6 +182,7 @@ def api_metricas():
                 COUNT(*) as cliques
             FROM ddm_ddmadv.links_ddmpay
             WHERE DATE(data_hora) BETWEEN %s AND %s
+              AND url LIKE '%par1=%'
             GROUP BY canal
             ORDER BY cliques DESC
         """
@@ -202,57 +203,107 @@ def api_metricas():
                 END as canal
             FROM ddm_ddmadv.links_ddmpay
             WHERE data_hora >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+              AND url LIKE '%par1=%'
             GROUP BY DATE(data_hora), canal
             ORDER BY data DESC
         """
         cursor.execute(query_tendencia)
         tendencia = cursor.fetchall()
 
-        # QUERY 4: Acordos e valor (tabela conversoes — se existir)
-        total_acordos = 0
-        valor_total = 0.0
-        volume_por_canal = {}
+        # QUERY 4: Funil + pagamento via VIEW vw_ddmpay_completo
+        # grain = (clique, acordo); pagamento (valor_pago) agregado por acordo na view.
+        # "pago" = valor_pago > 0 (vem de acordos_pagamentos.valor_pago / baixa_local).
+        total_acordos = 0      # usuarios distintos com acordo
+        total_pagaram = 0      # usuarios distintos que pagaram
+        valor_total = 0.0      # R$ pago (dedup por acordo)
+        ticket_medio = 0.0
+        volume_por_canal = {}  # R$ pago por canal
+        acordos_por_canal = {} # usuarios com acordo por canal
+        por_canal_detalhe = {} # {canal: {cliques, usuarios, com_acordo, pagaram, valor_pago}}
+        por_campanha = {}      # {campanha(par3): idem}
         ultimos_acordos = []
+
+        CANAL_LABEL = {'sms': 'SMS', 'whatsapp': 'WhatsApp', 'email': 'E-mail', 'rcs': 'RCS'}
+        def label_canal(c):
+            return CANAL_LABEL.get((c or '').strip().lower(), 'Outro')
+
         try:
             cursor.execute("""
-                SELECT COUNT(*) as total, COALESCE(SUM(valor), 0) as valor_total
-                FROM ddm_ddmadv.conversoes
-                WHERE status = 'pago'
-                AND DATE(data_pagamento) BETWEEN %s AND %s
+                SELECT clique_id, clique_data, par1, canal, lote, nome,
+                       nr_acordo, acordo_data, tem_acordo, valor_pago, pago
+                FROM ddm_ddmadv.vw_ddmpay_completo
+                WHERE DATE(clique_data) BETWEEN %s AND %s
             """, (data_inicio, data_fim))
-            row_conv = cursor.fetchone()
-            total_acordos = row_conv['total']
-            valor_total = float(row_conv['valor_total'])
+            rows = cursor.fetchall()
 
-            cursor.execute("""
-                SELECT canal, COUNT(*) as acordos, COALESCE(SUM(valor), 0) as valor
-                FROM ddm_ddmadv.conversoes
-                WHERE status = 'pago'
-                AND DATE(data_pagamento) BETWEEN %s AND %s
-                GROUP BY canal
-            """, (data_inicio, data_fim))
-            volume_por_canal = {row['canal']: float(row['valor']) for row in cursor.fetchall()}
+            def novo():
+                return {'cliques': set(), 'usuarios': set(), 'com_acordo': set(),
+                        'pagaram': set(), 'acordos_pagos': {}}
+            agg_canal, agg_camp = {}, {}
+            users_acordo, users_pago, acordos_valor = set(), set(), {}
 
-            cursor.execute("""
-                SELECT cliente_id, canal, campanha, valor, status, data_pagamento as data
-                FROM ddm_ddmadv.conversoes
-                WHERE DATE(data_pagamento) BETWEEN %s AND %s
-                ORDER BY data_pagamento DESC
-                LIMIT 20
-            """, (data_inicio, data_fim))
-            ultimos_acordos = [
-                {
-                    'aluno_id': r['cliente_id'],
-                    'canal': r['canal'] or '',
-                    'campanha': r['campanha'] or '',
-                    'valor': float(r['valor']),
-                    'status': r['status'],
-                    'data': str(r['data'])
-                }
-                for r in cursor.fetchall()
-            ]
-        except Exception:
-            pass  # tabela conversoes ainda nao existe
+            for r in rows:
+                par1 = r['par1']
+                chaves = ((label_canal(r['canal']), agg_canal),
+                          (((r['lote'] or '').strip() or '(sem campanha)'), agg_camp))
+                for key, store in chaves:
+                    b = store.setdefault(key, novo())
+                    b['cliques'].add(r['clique_id'])
+                    if par1:
+                        b['usuarios'].add(par1)
+                    if r['tem_acordo'] and par1:
+                        b['com_acordo'].add(par1)
+                    if r['pago']:
+                        if par1:
+                            b['pagaram'].add(par1)
+                        if r['nr_acordo'] is not None:
+                            b['acordos_pagos'][r['nr_acordo']] = float(r['valor_pago'] or 0)
+                if r['tem_acordo'] and par1:
+                    users_acordo.add(par1)
+                if r['pago']:
+                    if par1:
+                        users_pago.add(par1)
+                    if r['nr_acordo'] is not None:
+                        acordos_valor[r['nr_acordo']] = float(r['valor_pago'] or 0)
+
+            total_acordos = len(users_acordo)
+            total_pagaram = len(users_pago)
+            valor_total = round(sum(acordos_valor.values()), 2)
+            ticket_medio = round(valor_total / total_pagaram, 2) if total_pagaram else 0.0
+
+            def finalize(store):
+                return {k: {
+                    'cliques': len(b['cliques']),
+                    'usuarios': len(b['usuarios']),
+                    'com_acordo': len(b['com_acordo']),
+                    'pagaram': len(b['pagaram']),
+                    'valor_pago': round(sum(b['acordos_pagos'].values()), 2),
+                } for k, b in store.items()}
+            por_canal_detalhe = finalize(agg_canal)
+            por_campanha = finalize(agg_camp)
+            acordos_por_canal = {k: v['com_acordo'] for k, v in por_canal_detalhe.items()}
+            volume_por_canal = {k: v['valor_pago'] for k, v in por_canal_detalhe.items()}
+
+            # Ultimos acordos (1 linha por acordo, mais recentes)
+            vistos = set()
+            for r in sorted((x for x in rows if x['tem_acordo']),
+                            key=lambda x: (x['acordo_data'] or datetime.min), reverse=True):
+                if r['nr_acordo'] in vistos:
+                    continue
+                vistos.add(r['nr_acordo'])
+                ultimos_acordos.append({
+                    'aluno_id': r['par1'],
+                    'nome': r['nome'] or '',
+                    'canal': (r['canal'] or '').lower(),
+                    'campanha': (r['lote'] or ''),
+                    'valor': float(r['valor_pago'] or 0),
+                    'status': 'pago' if r['pago'] else 'pendente',
+                    'data': str(r['acordo_data']) if r['acordo_data'] else ''
+                })
+                if len(ultimos_acordos) >= 20:
+                    break
+        except Exception as e:
+            print(f"[VIEW completo] erro: {e}")
 
         cursor.close()
         cnx.close()
@@ -268,9 +319,14 @@ def api_metricas():
                 'total_cliques': total_cliques,
                 'total_cliques_unicos': total_cliques_unicos,
                 'por_canal': por_canal,
+                'acordos_por_canal': acordos_por_canal,
                 'volume_por_canal': volume_por_canal,
+                'por_canal_detalhe': por_canal_detalhe,
+                'por_campanha': por_campanha,
                 'total_acordos': total_acordos,
+                'total_pagaram': total_pagaram,
                 'valor_total': valor_total,
+                'ticket_medio': ticket_medio,
                 'acordos': ultimos_acordos,
                 'tendencia_ultimos_7_dias': [
                     {
