@@ -193,7 +193,8 @@ def api_funil_evento():
         par3 = str(data.get('par3', '')).strip()
         pagina_url = str(data.get('url', '')).strip()
         metadata = data.get('metadata') or {}
-        salvar_evento_funil(tid, par1, par2, par3, etapa, pagina_url, metadata)
+        if not salvar_evento_funil(tid, par1, par2, par3, etapa, pagina_url, metadata):
+            return jsonify({'status': 'erro', 'mensagem': 'Conexao com banco falhou'}), 500
 
         return jsonify({'status': 'recebido', 'etapa': etapa, 'etapa_label': FUNIL_ETAPAS[etapa]}), 200
     except Exception as e:
