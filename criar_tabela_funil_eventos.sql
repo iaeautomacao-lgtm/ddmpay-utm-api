@@ -1,5 +1,20 @@
 USE ddm_ddmadv;
 
+CREATE TABLE IF NOT EXISTS ddmpay_short_links (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    codigo VARCHAR(16) NOT NULL UNIQUE,
+    par1 VARCHAR(100) NOT NULL,
+    par2 VARCHAR(50) NOT NULL,
+    par3 VARCHAR(200) NOT NULL,
+    tid VARCHAR(40) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_par1 (par1),
+    INDEX idx_par2 (par2),
+    INDEX idx_par3 (par3),
+    INDEX idx_tid (tid),
+    INDEX idx_created_at (created_at)
+);
+
 CREATE TABLE IF NOT EXISTS ddmpay_funil_eventos (
     id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     tid VARCHAR(40) NULL,
@@ -23,3 +38,4 @@ CREATE TABLE IF NOT EXISTS ddmpay_funil_eventos (
 
 -- Permissao necessaria para o usuario da aplicacao, se ele ainda nao tiver INSERT:
 -- GRANT SELECT, INSERT ON ddm_ddmadv.ddmpay_funil_eventos TO 'ddm_ia'@'%';
+-- GRANT SELECT, INSERT ON ddm_ddmadv.ddmpay_short_links TO 'ddm_ia'@'%';

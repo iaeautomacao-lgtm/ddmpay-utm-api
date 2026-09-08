@@ -6,7 +6,9 @@ API Flask para gerar links curtos rastreaveis, redirecionar para o DDMPay e cons
 
 - `GET /utm` - gerador de links curtos.
 - `GET /dashboard` - dashboard de cliques, acordos, pagamentos e funil.
-- `GET /l/<token>` - link curto; redireciona para o DDMPay com `par1`, `par2`, `par3` e `tid`.
+- `GET /s/<codigo>` - link curto real salvo no banco; redireciona para o DDMPay.
+- `GET /l/<token>` - fallback sem banco; redireciona para o DDMPay com `par1`, `par2`, `par3` e `tid`.
+- `POST /api/short-link` - cria um codigo curto para campanha.
 - `POST /api/funil-evento` - recebe eventos de etapa do DDMPay.
 - `GET /api/metricas` - dados do dashboard.
 - `GET /health` - health check.
@@ -16,7 +18,7 @@ API Flask para gerar links curtos rastreaveis, redirecionar para o DDMPay e cons
 O gerador cria links neste formato:
 
 ```text
-https://seudominio.com/l/eyJpIjoi...
+https://seudominio.com/s/a8K2pQ9
 ```
 
 Ao clicar, a API redireciona para:
@@ -53,7 +55,7 @@ Etapas aceitas:
 - `payment_start` - iniciou o pagamento.
 - `paid` - pagou.
 
-Antes de ativar o funil detalhado, rode `criar_tabela_funil_eventos.sql` no MySQL e garanta `INSERT` para o usuario da aplicacao.
+Antes de ativar link curto real e funil detalhado, rode `criar_tabela_funil_eventos.sql` no MySQL e garanta `INSERT` para o usuario da aplicacao nas tabelas `ddmpay_short_links` e `ddmpay_funil_eventos`.
 
 ## Rodar localmente
 

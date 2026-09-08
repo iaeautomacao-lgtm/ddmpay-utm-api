@@ -3,6 +3,8 @@ from urllib.parse import urlencode
 import json
 import os
 import base64
+import random
+import string
 from datetime import datetime, timedelta
 import mysql.connector
 from mysql.connector import Error
@@ -84,6 +86,55 @@ def ddmpay_url_from_params(params):
     if clean:
         return CHECKOUT_URL + '?' + urlencode(clean)
     return CHECKOUT_URL
+
+
+def gerar_codigo_curto(tamanho=7):
+    alfabeto = string.ascii_letters + string.digits
+    return ''.join(random.choice(alfabeto) for _ in range(tamanho))
+
+
+def criar_link_curto_db(par1, par2, par3, tid):
+    cnx = get_db_connection()
+    if not cnx:
+        return None
+
+    try:
+        cursor = cnx.cursor()
+        for _ in range(8):
+            codigo = gerar_codigo_curto()
+            try:
+                cursor.execute("""
+                    INSERT INTO ddm_ddmadv.ddmpay_short_links
+                        (codigo, par1, par2, par3, tid, created_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                """, (codigo, par1, par2, par3, tid))
+                cnx.commit()
+                return codigo
+            except mysql.connector.IntegrityError:
+                continue
+        return None
+    finally:
+        cursor.close()
+        cnx.close()
+
+
+def buscar_link_curto_db(codigo):
+    cnx = get_db_connection()
+    if not cnx:
+        return None
+
+    try:
+        cursor = cnx.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT codigo, par1, par2, par3, tid
+            FROM ddm_ddmadv.ddmpay_short_links
+            WHERE codigo = %s
+            LIMIT 1
+        """, (codigo,))
+        return cursor.fetchone()
+    finally:
+        cursor.close()
+        cnx.close()
 
 
 def salvar_evento_funil(tid, par1, par2, par3, etapa, pagina_url='', metadata=None):
@@ -173,6 +224,63 @@ def link_curto(token):
         print(f"[LINK CURTO] clique nao salvo no funil: {e}")
     print(f"[LINK CURTO] tid={data.get('tid')} destino={checkout_url}")
     return redirect(checkout_url)
+
+
+@app.route('/s/<codigo>', methods=['GET'])
+def link_super_curto(codigo):
+    """
+    Redireciona codigo curto salvo no banco.
+    Exemplo: /s/a8K2pQ9 -> DDMPay com par1/par2/par3/tid.
+    """
+    data = buscar_link_curto_db(codigo)
+    if not data:
+        return jsonify({'status': 'erro', 'mensagem': 'Link nao encontrado'}), 404
+
+    params = {
+        'par1': data.get('par1'),
+        'par2': data.get('par2'),
+        'par3': data.get('par3'),
+        'tid': data.get('tid'),
+    }
+    checkout_url = ddmpay_url_from_params(params)
+    try:
+        salvar_evento_funil(data.get('tid'), data.get('par1'), data.get('par2'), data.get('par3'), 'click', checkout_url)
+    except Exception as e:
+        print(f"[LINK SUPER CURTO] clique nao salvo no funil: {e}")
+    print(f"[LINK SUPER CURTO] codigo={codigo} tid={data.get('tid')} destino={checkout_url}")
+    return redirect(checkout_url)
+
+
+@app.route('/api/short-link', methods=['POST'])
+def api_short_link():
+    """Cria link curto real salvo no banco."""
+    try:
+        data = request.get_json(force=True) or {}
+        par1 = str(data.get('par1', '')).strip()
+        par2 = str(data.get('par2', '')).strip().lower()
+        par3 = str(data.get('par3', '')).strip()
+        tid = str(data.get('tid', '')).strip()
+
+        if not par1 or not par2 or not par3 or not tid:
+            return jsonify({'status': 'erro', 'mensagem': 'par1, par2, par3 e tid sao obrigatorios'}), 400
+
+        codigo = criar_link_curto_db(par1, par2, par3, tid)
+        if not codigo:
+            return jsonify({'status': 'erro', 'mensagem': 'Nao foi possivel criar link curto'}), 500
+
+        base_url = request.host_url.rstrip('/')
+        short_url = f"{base_url}/s/{codigo}"
+        destination_url = ddmpay_url_from_params({'par1': par1, 'par2': par2, 'par3': par3, 'tid': tid})
+
+        return jsonify({
+            'status': 'ok',
+            'codigo': codigo,
+            'short_url': short_url,
+            'destination_url': destination_url
+        }), 200
+    except Exception as e:
+        print(f"[SHORT LINK] Erro: {e}")
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
 
 
 @app.route('/api/funil-evento', methods=['POST'])

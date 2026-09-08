@@ -68,6 +68,32 @@ document.addEventListener('DOMContentLoaded', () => {
         return url.toString();
     };
 
+    const resolveShortLink = async (baseURL, payload) => {
+        const fallback = {
+            shortUrl: buildShortLink(payload),
+            destinationUrl: buildDestinationLink(baseURL, payload)
+        };
+
+        try {
+            const response = await fetch('/api/short-link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) return fallback;
+            const data = await response.json();
+            if (!data.short_url || !data.destination_url) return fallback;
+
+            return {
+                shortUrl: data.short_url,
+                destinationUrl: data.destination_url
+            };
+        } catch (e) {
+            return fallback;
+        }
+    };
+
     // --- TAB SYSTEM ---
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -133,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- CRIAÇÃO INDIVIDUAL LOGIC ---
-    const buildIndividualURL = () => {
+    const buildIndividualURL = async () => {
         // URL padrão do DDMPay (domínio que GRAVA o clique em links_ddmpay)
         let baseURL = indUrl.value.trim() || 'https://ddmpay.ddmacordos.com/acesso/';
         
@@ -167,14 +193,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const payload = { ...params, tid: currentTrackingId };
-            const shortUrl = buildShortLink(payload);
-            const destinationUrl = buildDestinationLink(url.toString(), payload);
+            outputLink.textContent = 'Gerando URL curta...';
+            outputLink.classList.remove('active');
 
-            outputLink.textContent = shortUrl;
+            const result = await resolveShortLink(url.toString(), payload);
+
+            outputLink.textContent = result.shortUrl;
             outputLink.classList.add('active');
             if (destinationLink) {
-                destinationLink.textContent = destinationUrl;
-                destinationLink.title = destinationUrl;
+                destinationLink.textContent = result.destinationUrl;
+                destinationLink.title = result.destinationUrl;
             }
 
         } catch (e) {
@@ -313,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ABA CRIAÇÃO EM LOTE LOGIC ---
     let generatedBatchUrls = [];
 
-    btnGenerateBatch.addEventListener('click', () => {
+    btnGenerateBatch.addEventListener('click', async () => {
         const urls = document.getElementById('batch-urls').value.split('\n').map(x => x.trim()).filter(Boolean);
         const sources = document.getElementById('batch-sources').value.split('\n').map(x => x.trim()).filter(Boolean);
         const mediums = document.getElementById('batch-mediums').value.split('\n').map(x => x.trim()).filter(Boolean);
@@ -327,15 +355,15 @@ document.addEventListener('DOMContentLoaded', () => {
         generatedBatchUrls = [];
 
         // Generate combinations (Cartesian Product)
-        urls.forEach(rawUrl => {
+        for (const rawUrl of urls) {
             let cleanUrl = rawUrl;
             if (!/^https?:\/\//i.test(cleanUrl)) {
                 cleanUrl = 'https://' + cleanUrl;
             }
 
-            sources.forEach(src => {
-                mediums.forEach(med => {
-                    campaigns.forEach(cam => {
+            for (const src of sources) {
+                for (const med of mediums) {
+                    for (const cam of campaigns) {
                         try {
                             const u = new URL(cleanUrl);
                             const payload = {
@@ -345,17 +373,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                 tid: buildTrackingId()
                             };
 
-                            generatedBatchUrls.push({
-                                shortUrl: buildShortLink(payload),
-                                destinationUrl: buildDestinationLink(u.toString(), payload)
-                            });
+                            generatedBatchUrls.push(await resolveShortLink(u.toString(), payload));
                         } catch (e) {
                             // Ignore individual invalid URL
                         }
-                    });
-                });
-            });
-        });
+                    }
+                }
+            }
+        }
 
         // Display results
         if (generatedBatchUrls.length > 0) {
