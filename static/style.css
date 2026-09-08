@@ -452,6 +452,28 @@ body {
     font-weight: 500;
 }
 
+.destination-preview {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--text-muted);
+}
+
+.destination-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+#destination-link {
+    font-family: monospace;
+    font-size: 0.86rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .copy-icon-btn {
     background: none;
     border: none;

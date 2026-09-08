@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSaveUtm = document.getElementById('btn-save-utm');
     const btnCopyIndividual = document.getElementById('btn-copy-individual');
     const outputLink = document.getElementById('output-link');
+    const destinationLink = document.getElementById('destination-link');
 
     const savedEmptyState = document.getElementById('saved-empty-state');
     const savedListContainer = document.getElementById('saved-list-container');
@@ -37,6 +38,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const SAVED_UTMS_KEY = 'ddm_saved_utms';
 
     let savedUTMs = JSON.parse(localStorage.getItem(SAVED_UTMS_KEY)) || [];
+    let currentTrackingId = '';
+    let currentTrackingSignature = '';
+
+    const buildTrackingId = () => {
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    };
+
+    const base64UrlEncode = (value) => {
+        const bytes = new TextEncoder().encode(value);
+        let binary = '';
+        bytes.forEach(byte => binary += String.fromCharCode(byte));
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    };
+
+    const getPublicBaseUrl = () => `${window.location.origin}`;
+
+    const buildShortLink = ({ par1, par2, par3, tid }) => {
+        const payload = [par1, par2, par3, tid];
+        return `${getPublicBaseUrl()}/l/${base64UrlEncode(JSON.stringify(payload))}`;
+    };
+
+    const buildDestinationLink = (baseURL, { par1, par2, par3, tid }) => {
+        const url = new URL(baseURL);
+        url.searchParams.set('par1', par1);
+        url.searchParams.set('par2', par2);
+        url.searchParams.set('par3', par3);
+        url.searchParams.set('tid', tid);
+        return url.toString();
+    };
 
     // --- TAB SYSTEM ---
     tabs.forEach(tab => {
@@ -80,9 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Apply Model to Individual Inputs
     dropdownItems.forEach(item => {
         item.addEventListener('click', () => {
-            document.getElementById('ind-source').value = item.getAttribute('data-source');
             document.getElementById('ind-medium').value = item.getAttribute('data-medium');
-            document.getElementById('ind-campaign').value = item.getAttribute('data-campaign');
             buildIndividualURL();
         });
     });
@@ -91,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     dropdownItemsBatch.forEach(item => {
         item.addEventListener('click', () => {
             const addTextToTextarea = (id, text) => {
+                if (!text) return;
                 const ta = document.getElementById(id);
                 const current = ta.value.trim();
                 if (current) {
@@ -99,9 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ta.value = text;
                 }
             };
-            addTextToTextarea('batch-sources', item.getAttribute('data-source'));
             addTextToTextarea('batch-mediums', item.getAttribute('data-medium'));
-            addTextToTextarea('batch-campaigns', item.getAttribute('data-campaign'));
         });
     });
 
@@ -123,22 +150,32 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = new URL(baseURL);
             
             const params = {
-                par1: document.getElementById('ind-source').value.trim(),   // ID/CPF do Aluno
-                par2: document.getElementById('ind-medium').value.trim(),   // Canal (sms, whatsapp)
-                par3: document.getElementById('ind-campaign').value.trim(), // Lote/Campanha
+                par1: document.getElementById('ind-source').value.trim(),
+                par2: document.getElementById('ind-medium').value.trim(),
+                par3: document.getElementById('ind-campaign').value.trim(),
             };
 
-            for (const [key, value] of Object.entries(params)) {
-                if (value) {
-                    url.searchParams.set(key, value);
-                } else {
-                    url.searchParams.delete(key);
-                }
+            if (!params.par1 || !params.par2 || !params.par3) {
+                resetIndividualUI();
+                return;
             }
 
-            const finalUrl = url.toString();
-            outputLink.textContent = finalUrl;
+            const signature = `${url.origin}${url.pathname}|${params.par1}|${params.par2}|${params.par3}`;
+            if (signature !== currentTrackingSignature) {
+                currentTrackingSignature = signature;
+                currentTrackingId = buildTrackingId();
+            }
+
+            const payload = { ...params, tid: currentTrackingId };
+            const shortUrl = buildShortLink(payload);
+            const destinationUrl = buildDestinationLink(url.toString(), payload);
+
+            outputLink.textContent = shortUrl;
             outputLink.classList.add('active');
+            if (destinationLink) {
+                destinationLink.textContent = destinationUrl;
+                destinationLink.title = destinationUrl;
+            }
 
         } catch (e) {
             resetIndividualUI();
@@ -146,8 +183,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const resetIndividualUI = () => {
-        outputLink.textContent = 'Preencha os campos para gerar sua URL parametrizada';
+        outputLink.textContent = 'Preencha os campos para gerar sua URL curta';
         outputLink.classList.remove('active');
+        if (destinationLink) {
+            destinationLink.textContent = 'Preencha os campos para visualizar o destino.';
+            destinationLink.removeAttribute('title');
+        }
     };
 
     indInputs.forEach(input => {
@@ -193,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `
                 <div class="saved-card-info">
                     <div class="saved-card-link" title="${item.fullUrl}">${item.fullUrl}</div>
+                    <div class="saved-card-link" title="${item.destinationUrl || ''}">${item.destinationUrl || ''}</div>
                     <div class="saved-card-meta">
                         <span class="saved-card-tag src">${item.source}</span>
                         <span class="saved-card-tag">${item.medium}</span>
@@ -244,6 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         savedUTMs.push({
             fullUrl: link,
+            destinationUrl: destinationLink ? destinationLink.textContent : '',
             source,
             medium,
             campaign
@@ -295,11 +338,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     campaigns.forEach(cam => {
                         try {
                             const u = new URL(cleanUrl);
-                            u.searchParams.set('par1', src); // Aluno
-                            u.searchParams.set('par2', med); // Canal
-                            u.searchParams.set('par3', cam); // Campanha
+                            const payload = {
+                                par1: src,
+                                par2: med,
+                                par3: cam,
+                                tid: buildTrackingId()
+                            };
 
-                            generatedBatchUrls.push(u.toString());
+                            generatedBatchUrls.push({
+                                shortUrl: buildShortLink(payload),
+                                destinationUrl: buildDestinationLink(u.toString(), payload)
+                            });
                         } catch (e) {
                             // Ignore individual invalid URL
                         }
@@ -314,18 +363,18 @@ document.addEventListener('DOMContentLoaded', () => {
             batchCount.textContent = generatedBatchUrls.length;
             
             batchResultsList.innerHTML = '';
-            generatedBatchUrls.forEach((link, idx) => {
+            generatedBatchUrls.forEach((item, idx) => {
                 const div = document.createElement('div');
                 div.className = 'batch-item';
                 div.innerHTML = `
-                    <span class="batch-item-url" title="${link}">${link}</span>
-                    <button type="button" class="card-action-btn copy-single-batch" data-url="${link}">
+                    <span class="batch-item-url" title="${item.destinationUrl}">${item.shortUrl}</span>
+                    <button type="button" class="card-action-btn copy-single-batch" data-url="${item.shortUrl}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                     </button>
                 `;
 
                 div.querySelector('.copy-single-batch').addEventListener('click', () => {
-                    navigator.clipboard.writeText(link).then(() => {
+                    navigator.clipboard.writeText(item.shortUrl).then(() => {
                         alert('URL copiada!');
                     });
                 });
@@ -339,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnCopyAllBatch.addEventListener('click', () => {
         if (generatedBatchUrls.length === 0) return;
-        const text = generatedBatchUrls.join('\n');
+        const text = generatedBatchUrls.map(item => item.shortUrl).join('\n');
         navigator.clipboard.writeText(text).then(() => {
             alert('Todas as URLs copiadas para a área de transferência!');
         });
@@ -348,9 +397,9 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDownloadCsv.addEventListener('click', () => {
         if (generatedBatchUrls.length === 0) return;
 
-        let csvContent = 'data:text/csv;charset=utf-8,URL Parametrizada\n';
-        generatedBatchUrls.forEach(url => {
-            csvContent += `"${url}"\n`;
+        let csvContent = 'data:text/csv;charset=utf-8,URL Curta,Destino Final\n';
+        generatedBatchUrls.forEach(item => {
+            csvContent += `"${item.shortUrl}","${item.destinationUrl}"\n`;
         });
 
         const encodedUri = encodeURI(csvContent);

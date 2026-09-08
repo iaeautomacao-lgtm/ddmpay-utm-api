@@ -639,6 +639,30 @@
             </table>
         </div>
 
+        <!-- Funil detalhado por campanha -->
+        <div class="table-container glass-panel" style="margin-top:32px;">
+            <div class="table-header">
+                <h3 class="table-title">Funil detalhado por campanha</h3>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Campanha</th>
+                        <th>Clicou</th>
+                        <th>Tela CPF</th>
+                        <th>CPF informado</th>
+                        <th>Pagamento</th>
+                        <th>Iniciou Pgto.</th>
+                        <th>Pagou</th>
+                        <th>Maior abandono</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-funil-campanha">
+                    <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Aguardando eventos do DDMPay...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <!-- Quebra por Canal -->
         <div class="table-container glass-panel" style="margin-top:32px;">
             <div class="table-header">
@@ -937,6 +961,46 @@
         function atualizarQuebras(dados) {
             renderQuebra('tabela-campanha', dados.por_campanha || {}, 'Nenhuma campanha no período');
             renderQuebra('tabela-canal', dados.por_canal_detalhe || {}, 'Nenhum canal no período');
+            renderFunilCampanha(dados.funil_por_campanha || {}, dados.abandono_por_campanha || {});
+        }
+
+        function renderFunilCampanha(funil, abandonos) {
+            const tbody = document.getElementById('tabela-funil-campanha');
+            const campanhas = Array.from(new Set([
+                ...Object.keys(funil || {}),
+                ...Object.keys(abandonos || {})
+            ]));
+
+            if (campanhas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Sem eventos detalhados. Configure o DDMPay para chamar /api/funil-evento em cada etapa.</td></tr>';
+                return;
+            }
+
+            campanhas.sort((a, b) => (((funil[b] || {}).paid || 0) - ((funil[a] || {}).paid || 0)));
+            tbody.innerHTML = campanhas.map(campanha => {
+                const f = funil[campanha] || {};
+                const abandono = maiorAbandono(abandonos[campanha] || {});
+                return `
+                    <tr>
+                        <td style="font-weight:600;">${campanha}</td>
+                        <td>${(f.click || 0).toLocaleString('pt-BR')}</td>
+                        <td>${(f.cpf_view || 0).toLocaleString('pt-BR')}</td>
+                        <td>${(f.cpf_submit || 0).toLocaleString('pt-BR')}</td>
+                        <td>${(f.payment_view || 0).toLocaleString('pt-BR')}</td>
+                        <td>${(f.payment_start || 0).toLocaleString('pt-BR')}</td>
+                        <td>${(f.paid || 0).toLocaleString('pt-BR')}</td>
+                        <td>${abandono}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function maiorAbandono(abandonos) {
+            const itens = Object.values(abandonos || {});
+            if (itens.length === 0) return 'Sem dados';
+            itens.sort((a, b) => (b.clientes || 0) - (a.clientes || 0));
+            const item = itens[0];
+            return `${item.etapa_label || 'Etapa'} (${(item.clientes || 0).toLocaleString('pt-BR')})`;
         }
 
         function renderQuebra(tbodyId, mapa, vazioMsg) {
@@ -992,6 +1056,8 @@
                     volume_por_canal: m.volume_por_canal || {},
                     por_canal_detalhe: m.por_canal_detalhe || {},
                     por_campanha: m.por_campanha || {},
+                    funil_por_campanha: m.funil_por_campanha || {},
+                    abandono_por_campanha: m.abandono_por_campanha || {},
                     tendencia: m.tendencia_ultimos_7_dias || [],
                     acordos: m.acordos || []
                 };

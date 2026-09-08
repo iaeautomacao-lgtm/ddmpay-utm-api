@@ -2,11 +2,22 @@ from flask import Flask, request, redirect, jsonify, send_file
 from urllib.parse import urlencode
 import json
 import os
+import base64
 from datetime import datetime, timedelta
 import mysql.connector
 from mysql.connector import Error
 
 app = Flask(__name__)
+
+CHECKOUT_URL = os.environ.get('DDMPAY_CHECKOUT_URL', 'https://ddmpay.ddmacordos.com/acesso/')
+FUNIL_ETAPAS = {
+    'click': 'Clicou no link',
+    'cpf_view': 'Chegou na tela do CPF',
+    'cpf_submit': 'Informou o CPF',
+    'payment_view': 'Chegou no pagamento',
+    'payment_start': 'Iniciou pagamento',
+    'paid': 'Pagou',
+}
 
 # ============================================================================
 # CONFIGURAÇÃO SEGURA DO BANCO (usa variáveis de ambiente)
@@ -44,6 +55,63 @@ def extract_param_from_url(url, param_name):
         return None
 
 
+def decode_short_token(token):
+    """Decodifica token curto gerado no front: base64url(JSON compacto)."""
+    try:
+        padded = token + ('=' * (-len(token) % 4))
+        raw = base64.urlsafe_b64decode(padded.encode('ascii')).decode('utf-8')
+        data = json.loads(raw)
+        if isinstance(data, list):
+            data = {
+                'i': data[0] if len(data) > 0 else '',
+                'c': data[1] if len(data) > 1 else '',
+                'm': data[2] if len(data) > 2 else '',
+                't': data[3] if len(data) > 3 else '',
+            }
+        return {
+            'par1': str(data.get('i', '')).strip(),
+            'par2': str(data.get('c', '')).strip().lower(),
+            'par3': str(data.get('m', '')).strip(),
+            'tid': str(data.get('t', '')).strip(),
+        }
+    except Exception as e:
+        print(f"[LINK CURTO] token invalido: {e}")
+        return None
+
+
+def ddmpay_url_from_params(params):
+    clean = {k: v for k, v in params.items() if v}
+    if clean:
+        return CHECKOUT_URL + '?' + urlencode(clean)
+    return CHECKOUT_URL
+
+
+def salvar_evento_funil(tid, par1, par2, par3, etapa, pagina_url='', metadata=None):
+    cnx = get_db_connection()
+    if not cnx:
+        return False
+
+    cursor = cnx.cursor()
+    cursor.execute("""
+        INSERT INTO ddm_ddmadv.ddmpay_funil_eventos
+            (tid, par1, par2, par3, etapa, etapa_label, pagina_url, metadata, created_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+    """, (
+        tid or None,
+        par1 or None,
+        par2 or None,
+        par3 or None,
+        etapa,
+        FUNIL_ETAPAS[etapa],
+        pagina_url or None,
+        json.dumps(metadata or {}, ensure_ascii=False),
+    ))
+    cnx.commit()
+    cursor.close()
+    cnx.close()
+    return True
+
+
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -76,14 +144,61 @@ def acesso():
     URL: /acesso/?par1=aaaa&par2=bbbb&par3=cc
     """
     params = request.args.to_dict()
-    
-    if params:
-        checkout_url = 'https://ddmpay.ddmacordos.com/acesso/?' + urlencode(params)
-    else:
-        checkout_url = 'https://ddmpay.ddmacordos.com/acesso/'
+    checkout_url = ddmpay_url_from_params(params)
     
     print(f"[ACESSO] Redirecionando para: {checkout_url}")
     return redirect(checkout_url)
+
+
+@app.route('/l/<token>', methods=['GET'])
+def link_curto(token):
+    """
+    Redireciona link curto para o DDMPay.
+    Exemplo: /l/<token> -> https://ddmpay.ddmacordos.com/acesso/?par1=...&par2=...&par3=...&tid=...
+    """
+    data = decode_short_token(token)
+    if not data or not data.get('par1'):
+        return jsonify({'status': 'erro', 'mensagem': 'Link invalido'}), 400
+
+    params = {
+        'par1': data.get('par1'),
+        'par2': data.get('par2'),
+        'par3': data.get('par3'),
+        'tid': data.get('tid'),
+    }
+    checkout_url = ddmpay_url_from_params(params)
+    try:
+        salvar_evento_funil(data.get('tid'), data.get('par1'), data.get('par2'), data.get('par3'), 'click', checkout_url)
+    except Exception as e:
+        print(f"[LINK CURTO] clique nao salvo no funil: {e}")
+    print(f"[LINK CURTO] tid={data.get('tid')} destino={checkout_url}")
+    return redirect(checkout_url)
+
+
+@app.route('/api/funil-evento', methods=['POST'])
+def api_funil_evento():
+    """
+    Recebe eventos de etapa do DDMPay para rastrear onde o cliente parou.
+    Body JSON: {tid, par1, par2, par3, etapa, url, metadata}
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        etapa = str(data.get('etapa', '')).strip().lower()
+        if etapa not in FUNIL_ETAPAS:
+            return jsonify({'status': 'erro', 'mensagem': 'Etapa invalida'}), 400
+
+        tid = str(data.get('tid', '')).strip()
+        par1 = str(data.get('par1', '')).strip()
+        par2 = str(data.get('par2', '')).strip().lower()
+        par3 = str(data.get('par3', '')).strip()
+        pagina_url = str(data.get('url', '')).strip()
+        metadata = data.get('metadata') or {}
+        salvar_evento_funil(tid, par1, par2, par3, etapa, pagina_url, metadata)
+
+        return jsonify({'status': 'recebido', 'etapa': etapa, 'etapa_label': FUNIL_ETAPAS[etapa]}), 200
+    except Exception as e:
+        print(f"[FUNIL EVENTO] Erro: {e}")
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
 
 
 @app.route('/webhook/pagamento', methods=['POST'])
@@ -221,6 +336,8 @@ def api_metricas():
         acordos_por_canal = {} # usuarios com acordo por canal
         por_canal_detalhe = {} # {canal: {cliques, usuarios, com_acordo, pagaram, valor_pago}}
         por_campanha = {}      # {campanha(par3): idem}
+        funil_por_campanha = {}
+        abandono_por_campanha = {}
         ultimos_acordos = []
 
         CANAL_LABEL = {'sms': 'SMS', 'whatsapp': 'WhatsApp', 'email': 'E-mail', 'rcs': 'RCS'}
@@ -305,6 +422,69 @@ def api_metricas():
         except Exception as e:
             print(f"[VIEW completo] erro: {e}")
 
+        # Eventos finos do DDMPay: permitem saber a ultima tela atingida.
+        # A tabela e alimentada pelo endpoint /api/funil-evento.
+        try:
+            cursor.execute("""
+                SELECT tid, par1, par2, par3, etapa, etapa_label, pagina_url, created_at
+                FROM ddm_ddmadv.ddmpay_funil_eventos
+                WHERE DATE(created_at) BETWEEN %s AND %s
+                ORDER BY created_at ASC
+            """, (data_inicio, data_fim))
+            event_rows = cursor.fetchall()
+
+            ordem_etapas = {
+                'click': 1,
+                'cpf_view': 2,
+                'cpf_submit': 3,
+                'payment_view': 4,
+                'payment_start': 5,
+                'paid': 6,
+            }
+
+            def key_evento(ev):
+                return ev.get('tid') or ev.get('par1') or ''
+
+            campanhas_eventos = {}
+            ultimos_por_cliente = {}
+
+            for ev in event_rows:
+                campanha = (ev.get('par3') or '').strip() or '(sem campanha)'
+                cliente_key = key_evento(ev)
+                if not cliente_key:
+                    continue
+
+                camp = campanhas_eventos.setdefault(campanha, {})
+                etapa = ev.get('etapa')
+                etapa_bucket = camp.setdefault(etapa, set())
+                etapa_bucket.add(cliente_key)
+
+                atual = ultimos_por_cliente.get((campanha, cliente_key))
+                if (
+                    atual is None
+                    or ordem_etapas.get(etapa, 0) > ordem_etapas.get(atual.get('etapa'), 0)
+                    or ev.get('created_at') > atual.get('created_at')
+                ):
+                    ultimos_por_cliente[(campanha, cliente_key)] = ev
+
+            for campanha, etapas in campanhas_eventos.items():
+                funil_por_campanha[campanha] = {
+                    etapa: len(clientes)
+                    for etapa, clientes in etapas.items()
+                }
+
+            for (campanha, _cliente_key), ev in ultimos_por_cliente.items():
+                bucket = abandono_por_campanha.setdefault(campanha, {})
+                etapa = ev.get('etapa') or 'desconhecido'
+                item = bucket.setdefault(etapa, {
+                    'etapa_label': ev.get('etapa_label') or FUNIL_ETAPAS.get(etapa, etapa),
+                    'clientes': 0,
+                    'ultima_url': ev.get('pagina_url') or '',
+                })
+                item['clientes'] += 1
+        except Exception as e:
+            print(f"[FUNIL EVENTOS] tabela indisponivel ou erro: {e}")
+
         cursor.close()
         cnx.close()
 
@@ -323,6 +503,8 @@ def api_metricas():
                 'volume_por_canal': volume_por_canal,
                 'por_canal_detalhe': por_canal_detalhe,
                 'por_campanha': por_campanha,
+                'funil_por_campanha': funil_por_campanha,
+                'abandono_por_campanha': abandono_por_campanha,
                 'total_acordos': total_acordos,
                 'total_pagaram': total_pagaram,
                 'valor_total': valor_total,
