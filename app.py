@@ -1,13 +1,19 @@
 from flask import Flask, request, redirect, jsonify, send_file
 from urllib.parse import urlencode
+import builtins
 import json
 import os
 import base64
 import random
 import string
+import sys
 from datetime import datetime, timedelta
 import mysql.connector
 from mysql.connector import Error
+
+def print(*args, **kwargs):
+    kwargs.setdefault('file', sys.stderr)
+    return builtins.print(*args, **kwargs)
 
 app = Flask(__name__)
 
