@@ -303,7 +303,8 @@ body {
     color: var(--error);
 }
 
-.field-group input {
+.field-group input,
+.field-group select {
     padding: 0.8rem 1rem;
     font-family: inherit;
     font-size: 0.95rem;
@@ -315,7 +316,8 @@ body {
     transition: all 0.2s ease;
 }
 
-.field-group input:focus {
+.field-group input:focus,
+.field-group select:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(255, 84, 0, 0.12);
 }

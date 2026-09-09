@@ -56,7 +56,6 @@
                             <button type="button" class="dropdown-item" data-medium="whatsapp">WhatsApp</button>
                             <button type="button" class="dropdown-item" data-medium="sms">SMS</button>
                             <button type="button" class="dropdown-item" data-medium="rcs">RCS</button>
-                            <button type="button" class="dropdown-item" data-medium="email">E-mail</button>
                         </div>
                     </div>
 
@@ -91,7 +90,12 @@
 
                         <div class="field-group">
                             <label for="ind-medium">Canal de Disparo (par2) <span class="req">*</span></label>
-                            <input type="text" id="ind-medium" placeholder="Ex: sms, whatsapp, rcs" required>
+                            <select id="ind-medium" required>
+                                <option value="">Selecione o canal</option>
+                                <option value="sms">SMS</option>
+                                <option value="whatsapp">WhatsApp</option>
+                                <option value="rcs">RCS</option>
+                            </select>
                         </div>
 
                         <div class="field-group" style="grid-column: span 2;">
@@ -153,7 +157,6 @@
                             <button type="button" class="dropdown-item-batch" data-medium="whatsapp">WhatsApp</button>
                             <button type="button" class="dropdown-item-batch" data-medium="sms">SMS</button>
                             <button type="button" class="dropdown-item-batch" data-medium="rcs">RCS</button>
-                            <button type="button" class="dropdown-item-batch" data-medium="email">E-mail</button>
                         </div>
                     </div>
                     
@@ -179,9 +182,14 @@
                         </div>
 
                         <div class="field-group">
-                            <label for="batch-mediums">Canais de Disparo (par2) <span class="req">*</span></label>
-                            <textarea id="batch-mediums" placeholder="sms&#10;whatsapp&#10;rcs" required></textarea>
-                            <span class="field-hint">Insira os canais de disparo (um por linha).</span>
+                            <label for="batch-medium">Canal de Disparo (par2) <span class="req">*</span></label>
+                            <select id="batch-medium" required>
+                                <option value="">Selecione o canal</option>
+                                <option value="sms">SMS</option>
+                                <option value="whatsapp">WhatsApp</option>
+                                <option value="rcs">RCS</option>
+                            </select>
+                            <span class="field-hint">Canal usado para todos os links deste lote.</span>
                         </div>
 
                         <div class="field-group" style="grid-column: span 2;">

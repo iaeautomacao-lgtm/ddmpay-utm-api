@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropdownItemsBatch = document.querySelectorAll('.dropdown-item-batch');
 
     const indForm = document.getElementById('individual-form');
-    const indInputs = indForm.querySelectorAll('input');
+    const indInputs = indForm.querySelectorAll('input, select');
     const indUrl = document.getElementById('ind-url');
     const btnClearIndividual = document.getElementById('btn-clear-individual');
     const btnSaveUtm = document.getElementById('btn-save-utm');
@@ -147,17 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Apply Model to Batch Textareas (adds to the lists)
     dropdownItemsBatch.forEach(item => {
         item.addEventListener('click', () => {
-            const addTextToTextarea = (id, text) => {
-                if (!text) return;
-                const ta = document.getElementById(id);
-                const current = ta.value.trim();
-                if (current) {
-                    ta.value = current + '\n' + text;
-                } else {
-                    ta.value = text;
-                }
-            };
-            addTextToTextarea('batch-mediums', item.getAttribute('data-medium'));
+            document.getElementById('batch-medium').value = item.getAttribute('data-medium');
         });
     });
 
@@ -347,11 +337,11 @@ document.addEventListener('DOMContentLoaded', () => {
     btnGenerateBatch.addEventListener('click', async () => {
         const urls = document.getElementById('batch-urls').value.split('\n').map(x => x.trim()).filter(Boolean);
         const sources = document.getElementById('batch-sources').value.split('\n').map(x => x.trim()).filter(Boolean);
-        const mediums = document.getElementById('batch-mediums').value.split('\n').map(x => x.trim()).filter(Boolean);
+        const medium = document.getElementById('batch-medium').value.trim();
         const campaigns = document.getElementById('batch-campaigns').value.split('\n').map(x => x.trim()).filter(Boolean);
 
-        if (urls.length === 0 || sources.length === 0 || mediums.length === 0 || campaigns.length === 0) {
-            alert('Por favor, preencha os campos obrigatórios (URLs, Origens, Mídias e Campanhas).');
+        if (urls.length === 0 || sources.length === 0 || !medium || campaigns.length === 0) {
+            alert('Por favor, preencha os campos obrigatórios (URLs, alunos, canal e campanhas).');
             return;
         }
 
@@ -365,21 +355,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             for (const src of sources) {
-                for (const med of mediums) {
-                    for (const cam of campaigns) {
-                        try {
-                            const u = new URL(cleanUrl);
-                            const payload = {
-                                par1: src,
-                                par2: med,
-                                par3: cam,
-                                tid: buildTrackingId()
-                            };
+                for (const cam of campaigns) {
+                    try {
+                        const u = new URL(cleanUrl);
+                        const payload = {
+                            par1: src,
+                            par2: medium,
+                            par3: cam,
+                            tid: buildTrackingId()
+                        };
 
-                            generatedBatchUrls.push(await resolveShortLink(u.toString(), payload));
-                        } catch (e) {
-                            // Ignore individual invalid URL
-                        }
+                        generatedBatchUrls.push(await resolveShortLink(u.toString(), payload));
+                    } catch (e) {
+                        // Ignore individual invalid URL
                     }
                 }
             }
