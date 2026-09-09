@@ -58,10 +58,21 @@ def extract_param_from_url(url, param_name):
 
 
 def decode_short_token(token):
-    """Decodifica token curto gerado no front: base64url(JSON compacto)."""
+    """Decodifica token fallback sem tabela."""
     try:
         padded = token + ('=' * (-len(token) % 4))
         raw = base64.urlsafe_b64decode(padded.encode('ascii')).decode('utf-8')
+        canal_map = {'w': 'whatsapp', 's': 'sms', 'e': 'email', 'r': 'rcs'}
+
+        if '|' in raw:
+            parts = raw.split('|')
+            return {
+                'par1': parts[0].strip() if len(parts) > 0 else '',
+                'par2': canal_map.get(parts[1].strip().lower(), parts[1].strip().lower()) if len(parts) > 1 else '',
+                'par3': parts[2].strip() if len(parts) > 2 else '',
+                'tid': parts[3].strip() if len(parts) > 3 else '',
+            }
+
         data = json.loads(raw)
         if isinstance(data, list):
             data = {

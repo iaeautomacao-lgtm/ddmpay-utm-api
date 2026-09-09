@@ -41,9 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTrackingId = '';
     let currentTrackingSignature = '';
 
-    const buildTrackingId = () => {
-        return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    };
+    const buildTrackingId = () => Math.random().toString(36).slice(2, 8);
 
     const base64UrlEncode = (value) => {
         const bytes = new TextEncoder().encode(value);
@@ -54,9 +52,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const getPublicBaseUrl = () => `${window.location.origin}`;
 
+    const encodeChannel = (channel) => {
+        const normalized = (channel || '').trim().toLowerCase();
+        return { whatsapp: 'w', sms: 's', email: 'e', rcs: 'r' }[normalized] || normalized;
+    };
+
     const buildShortLink = ({ par1, par2, par3, tid }) => {
-        const payload = [par1, par2, par3, tid];
-        return `${getPublicBaseUrl()}/l/${base64UrlEncode(JSON.stringify(payload))}`;
+        const payload = [par1, encodeChannel(par2), par3, tid].join('|');
+        return `${getPublicBaseUrl()}/l/${base64UrlEncode(payload)}`;
     };
 
     const buildDestinationLink = (baseURL, { par1, par2, par3, tid }) => {
