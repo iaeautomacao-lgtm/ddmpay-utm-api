@@ -564,6 +564,7 @@ def api_metricas():
         acordos_por_canal = {} # usuarios com acordo por canal
         por_canal_detalhe = {} # {canal: {cliques, usuarios, com_acordo, pagaram, valor_pago}}
         por_campanha = {}      # {campanha(par3): idem}
+        agg_campanha_dia = {}  # {(data, campanha): idem com sets para deduplicar}
         funil_por_campanha = {}
         abandono_por_campanha = {}
         ultimos_acordos = []
@@ -571,6 +572,30 @@ def api_metricas():
         CANAL_LABEL = {'sms': 'SMS', 'whatsapp': 'WhatsApp', 'email': 'E-mail', 'rcs': 'RCS'}
         def label_canal(c):
             return CANAL_LABEL.get((c or '').strip().lower(), 'Outro')
+
+        def data_key(value):
+            if isinstance(value, datetime):
+                return value.strftime('%Y-%m-%d')
+            if value:
+                return str(value)[:10]
+            return ''
+
+        def novo_bucket_dia():
+            return {
+                'cliques': set(),
+                'usuarios': set(),
+                'entraram_ddmpay': set(),
+                'com_acordo': set(),
+                'pagaram': set(),
+                'acordos_pagos': {},
+            }
+
+        def bucket_campanha_dia(data, campanha):
+            data = data_key(data)
+            if not data:
+                return None
+            campanha = (campanha or '').strip() or '(sem campanha)'
+            return agg_campanha_dia.setdefault((data, campanha), novo_bucket_dia())
 
         try:
             cursor.execute("""
@@ -589,6 +614,19 @@ def api_metricas():
 
             for r in rows:
                 par1 = r['par1']
+                campanha_row = (r['lote'] or '').strip() or '(sem campanha)'
+                dia_bucket = bucket_campanha_dia(r['clique_data'], campanha_row)
+                if dia_bucket is not None:
+                    dia_bucket['cliques'].add(r['clique_id'])
+                    if par1:
+                        dia_bucket['usuarios'].add(par1)
+                    if r['tem_acordo'] and par1:
+                        dia_bucket['com_acordo'].add(par1)
+                    if r['pago']:
+                        if par1:
+                            dia_bucket['pagaram'].add(par1)
+                        if r['nr_acordo'] is not None:
+                            dia_bucket['acordos_pagos'][r['nr_acordo']] = float(r['valor_pago'] or 0)
                 chaves = ((label_canal(r['canal']), agg_canal),
                           (((r['lote'] or '').strip() or '(sem campanha)'), agg_camp))
                 for key, store in chaves:
@@ -770,12 +808,19 @@ def api_metricas():
                     local_campaign_users.add((campanha, cliente_key))
                     por_campanha[campanha]['usuarios'] += 1
                 created_at = ev.get('created_at')
+                dia_bucket = bucket_campanha_dia(created_at, campanha)
+                if dia_bucket is not None:
+                    dia_bucket['cliques'].add(cliente_key)
+                    dia_bucket['usuarios'].add(cliente_key)
                 if isinstance(created_at, datetime):
-                    data_key = str(created_at.date())
-                    local_click_days[data_key] = local_click_days.get(data_key, 0) + 1
+                    dia_local = str(created_at.date())
+                    local_click_days[dia_local] = local_click_days.get(dia_local, 0) + 1
 
             if etapa in ('cpf_submit', 'payment_view', 'payment_start', 'paid'):
                 entered_users.add(cliente_key)
+                dia_bucket = bucket_campanha_dia(ev.get('created_at'), campanha)
+                if dia_bucket is not None:
+                    dia_bucket['entraram_ddmpay'].add(cliente_key)
                 canal_nome = label_canal(ev.get('par2'))
                 por_canal_detalhe.setdefault(canal_nome, {
                     'cliques': 0, 'usuarios': 0, 'com_acordo': 0, 'pagaram': 0, 'valor_pago': 0
@@ -821,6 +866,24 @@ def api_metricas():
             })
             item['clientes'] += 1
 
+        por_campanha_dia = [
+            {
+                'data': data,
+                'campanha': campanha,
+                'cliques': len(bucket['cliques']),
+                'usuarios': len(bucket['usuarios']),
+                'entraram_ddmpay': len(bucket['entraram_ddmpay']),
+                'com_acordo': len(bucket['com_acordo']),
+                'pagaram': len(bucket['pagaram']),
+                'valor_pago': round(sum(bucket['acordos_pagos'].values()), 2),
+            }
+            for (data, campanha), bucket in agg_campanha_dia.items()
+        ]
+        por_campanha_dia.sort(
+            key=lambda item: (item['data'], item['valor_pago'], item['cliques']),
+            reverse=True
+        )
+
         cursor.close()
         cnx.close()
 
@@ -839,6 +902,7 @@ def api_metricas():
                 'volume_por_canal': volume_por_canal,
                 'por_canal_detalhe': por_canal_detalhe,
                 'por_campanha': por_campanha,
+                'por_campanha_dia': por_campanha_dia,
                 'funil_por_campanha': funil_por_campanha,
                 'abandono_por_campanha': abandono_por_campanha,
                 'total_entraram_ddmpay': total_entraram_ddmpay,

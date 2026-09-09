@@ -649,6 +649,30 @@
             </table>
         </div>
 
+        <!-- Quebra por Campanha e Dia -->
+        <div class="table-container glass-panel" style="margin-top:32px;">
+            <div class="table-header">
+                <h3 class="table-title">Desempenho por campanha e dia</h3>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Campanha</th>
+                        <th>Cliques</th>
+                        <th>Usuarios unicos</th>
+                        <th>Entraram DDMPay</th>
+                        <th>Com Acordo</th>
+                        <th>Pagaram</th>
+                        <th>Valor Pago (R$)</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-campanha-dia">
+                    <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <!-- Funil detalhado por campanha -->
         <div class="table-container glass-panel" style="margin-top:32px;">
             <div class="table-header">
@@ -740,6 +764,7 @@
                 atualizarGraficos(dados);
                 atualizarTabela(dados);
                 atualizarQuebras(dados);
+                renderCampanhaDia(dados.por_campanha_dia || []);
 
                 document.getElementById('last-updated').innerHTML = `Sincronizado às ${new Date().toLocaleTimeString('pt-BR')}`;
                 btnAtualizar.style.opacity = '1';
@@ -981,6 +1006,27 @@
             renderFunilCampanha(dados.funil_por_campanha || {}, dados.abandono_por_campanha || {});
         }
 
+        function renderCampanhaDia(linhas) {
+            const tbody = document.getElementById('tabela-campanha-dia');
+            if (!linhas || linhas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma campanha por dia no periodo</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = linhas.map(d => `
+                <tr>
+                    <td style="font-weight:600;">${new Date(`${d.data}T00:00:00`).toLocaleDateString('pt-BR')}</td>
+                    <td style="font-weight:600;">${d.campanha || '(sem campanha)'}</td>
+                    <td>${(d.cliques || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.usuarios || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.entraram_ddmpay || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.com_acordo || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.pagaram || 0).toLocaleString('pt-BR')}</td>
+                    <td style="font-weight:600;">R$ ${(d.valor_pago || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                </tr>
+            `).join('');
+        }
+
         function renderFunilCampanha(funil, abandonos) {
             const tbody = document.getElementById('tabela-funil-campanha');
             const campanhas = Array.from(new Set([
@@ -1075,6 +1121,7 @@
                     volume_por_canal: m.volume_por_canal || {},
                     por_canal_detalhe: m.por_canal_detalhe || {},
                     por_campanha: m.por_campanha || {},
+                    por_campanha_dia: m.por_campanha_dia || [],
                     funil_por_campanha: m.funil_por_campanha || {},
                     abandono_por_campanha: m.abandono_por_campanha || {},
                     tendencia: m.tendencia_ultimos_7_dias || [],
