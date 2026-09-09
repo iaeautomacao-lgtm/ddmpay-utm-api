@@ -612,17 +612,29 @@ def api_metricas():
             agg_canal, agg_camp = {}, {}
             users_acordo, users_pago, acordos_valor = set(), set(), {}
 
+            def acordo_atribuido(r):
+                acordo_data = r.get('acordo_data')
+                clique_data = r.get('clique_data')
+                if not r.get('tem_acordo') or not acordo_data or not clique_data:
+                    return False
+                return acordo_data >= clique_data
+
+            def pagamento_atribuido(r):
+                return bool(r.get('pago') and acordo_atribuido(r))
+
             for r in rows:
                 par1 = r['par1']
+                tem_acordo_atribuido = acordo_atribuido(r)
+                tem_pagamento_atribuido = pagamento_atribuido(r)
                 campanha_row = (r['lote'] or '').strip() or '(sem campanha)'
                 dia_bucket = bucket_campanha_dia(r['clique_data'], campanha_row)
                 if dia_bucket is not None:
                     dia_bucket['cliques'].add(r['clique_id'])
                     if par1:
                         dia_bucket['usuarios'].add(par1)
-                    if r['tem_acordo'] and par1:
+                    if tem_acordo_atribuido and par1:
                         dia_bucket['com_acordo'].add(par1)
-                    if r['pago']:
+                    if tem_pagamento_atribuido:
                         if par1:
                             dia_bucket['pagaram'].add(par1)
                         if r['nr_acordo'] is not None:
@@ -634,16 +646,16 @@ def api_metricas():
                     b['cliques'].add(r['clique_id'])
                     if par1:
                         b['usuarios'].add(par1)
-                    if r['tem_acordo'] and par1:
+                    if tem_acordo_atribuido and par1:
                         b['com_acordo'].add(par1)
-                    if r['pago']:
+                    if tem_pagamento_atribuido:
                         if par1:
                             b['pagaram'].add(par1)
                         if r['nr_acordo'] is not None:
                             b['acordos_pagos'][r['nr_acordo']] = float(r['valor_pago'] or 0)
-                if r['tem_acordo'] and par1:
+                if tem_acordo_atribuido and par1:
                     users_acordo.add(par1)
-                if r['pago']:
+                if tem_pagamento_atribuido:
                     if par1:
                         users_pago.add(par1)
                     if r['nr_acordo'] is not None:
@@ -669,7 +681,7 @@ def api_metricas():
 
             # Ultimos acordos (1 linha por acordo, mais recentes)
             vistos = set()
-            for r in sorted((x for x in rows if x['tem_acordo']),
+            for r in sorted((x for x in rows if acordo_atribuido(x)),
                             key=lambda x: (x['acordo_data'] or datetime.min), reverse=True):
                 if r['nr_acordo'] in vistos:
                     continue
