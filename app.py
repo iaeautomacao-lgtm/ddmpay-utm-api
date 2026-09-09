@@ -21,6 +21,7 @@ CHECKOUT_URL = os.environ.get('DDMPAY_CHECKOUT_URL', 'https://ddmpay.ddmacordos.
 DATA_DIR = os.environ.get('DDMPAY_DATA_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data'))
 SHORT_LINKS_FILE = os.path.join(DATA_DIR, 'short_links.json')
 FUNNEL_EVENTS_FILE = os.path.join(DATA_DIR, 'funnel_events.jsonl')
+EXCLUDED_CAMPAIGNS_FILE = os.path.join(DATA_DIR, 'excluded_campaigns.json')
 FUNIL_ETAPAS = {
     'click': 'Clicou no link',
     'cpf_view': 'Chegou na tela do CPF',
@@ -193,6 +194,65 @@ def load_funil_eventos_file(data_inicio, data_fim):
             except Exception:
                 continue
     return rows
+
+
+def load_excluded_campaigns():
+    try:
+        ensure_data_dir()
+        if not os.path.exists(EXCLUDED_CAMPAIGNS_FILE):
+            return set()
+        with open(EXCLUDED_CAMPAIGNS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return {str(item).strip() for item in data if str(item).strip()}
+    except Exception as e:
+        print(f"[EXCLUDED CAMPAIGNS] erro ao ler: {e}")
+        return set()
+
+
+def save_excluded_campaigns(campanhas):
+    ensure_data_dir()
+    with open(EXCLUDED_CAMPAIGNS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(sorted(campanhas), f, ensure_ascii=False)
+
+
+def excluir_campanha_local(campanha):
+    campanha = (campanha or '').strip()
+    if not campanha:
+        return {'short_links': 0, 'eventos': 0}
+
+    removidos = {'short_links': 0, 'eventos': 0}
+    excluidas = load_excluded_campaigns()
+    excluidas.add(campanha)
+    save_excluded_campaigns(excluidas)
+
+    links = load_short_links_file()
+    if links:
+        links_filtrados = {
+            codigo: link for codigo, link in links.items()
+            if (link.get('par3') or '').strip() != campanha
+        }
+        removidos['short_links'] = len(links) - len(links_filtrados)
+        if removidos['short_links']:
+            save_short_links_file(links_filtrados)
+
+    if os.path.exists(FUNNEL_EVENTS_FILE):
+        linhas_mantidas = []
+        with open(FUNNEL_EVENTS_FILE, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                    if (row.get('par3') or '').strip() == campanha:
+                        removidos['eventos'] += 1
+                        continue
+                except Exception:
+                    pass
+                linhas_mantidas.append(line)
+
+        if removidos['eventos']:
+            with open(FUNNEL_EVENTS_FILE, 'w', encoding='utf-8') as f:
+                f.writelines(linhas_mantidas)
+
+    return removidos
 
 
 def criar_link_curto_db(par1, par2, par3, tid):
@@ -401,6 +461,18 @@ def api_short_link():
         return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
 
 
+@app.route('/api/campanha/<path:campanha>', methods=['DELETE'])
+def api_excluir_campanha(campanha):
+    """Remove uma campanha apenas dos arquivos locais de rastreio/links."""
+    removidos = excluir_campanha_local(campanha)
+    return jsonify({
+        'status': 'ok',
+        'campanha': campanha,
+        'removidos': removidos,
+        'observacao': 'Dados do banco DDMPay nao foram alterados.'
+    }), 200
+
+
 @app.route('/api/funil-evento', methods=['POST'])
 def api_funil_evento():
     """
@@ -489,6 +561,7 @@ def api_metricas():
             (datetime.strptime(data_fim, '%Y-%m-%d') - timedelta(days=dias)).strftime('%Y-%m-%d'))
         
         canal_filtro = request.args.get('canal', 'todos').lower()
+        campanhas_excluidas = load_excluded_campaigns()
         
         # Conectar ao banco
         cnx = get_db_connection()
@@ -627,6 +700,8 @@ def api_metricas():
                 tem_acordo_atribuido = acordo_atribuido(r)
                 tem_pagamento_atribuido = pagamento_atribuido(r)
                 campanha_row = (r['lote'] or '').strip() or '(sem campanha)'
+                if campanha_row in campanhas_excluidas:
+                    continue
                 dia_bucket = bucket_campanha_dia(r['clique_data'], campanha_row)
                 if dia_bucket is not None:
                     dia_bucket['cliques'].add(r['clique_id'])
@@ -791,6 +866,8 @@ def api_metricas():
 
         for ev in event_rows:
             campanha = (ev.get('par3') or '').strip() or '(sem campanha)'
+            if campanha in campanhas_excluidas:
+                continue
             cliente_key = key_evento(ev)
             if not cliente_key:
                 continue

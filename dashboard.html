@@ -413,6 +413,21 @@
         .canal-email::before { background: var(--color-email); }
         .canal-rcs::before { background: var(--color-rcs); }
 
+        .btn-delete-row {
+            border: 1px solid rgba(220, 38, 38, 0.25);
+            background: rgba(239, 68, 68, 0.08);
+            color: #DC2626;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-delete-row:hover {
+            background: rgba(239, 68, 68, 0.14);
+        }
+
         /* Loading */
         .loading-container {
             display: flex;
@@ -654,10 +669,11 @@
                         <th>Com Acordo</th>
                         <th>Pagaram</th>
                         <th>Valor Pago (R$)</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody id="tabela-campanha">
-                    <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
+                    <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -1014,11 +1030,50 @@
         }
 
         function atualizarQuebras(dados) {
-            renderQuebra('tabela-campanha', dados.por_campanha || {}, 'Nenhuma campanha no período');
+            renderCampanhas(dados.por_campanha || {});
             renderQuebra('tabela-canal', dados.por_canal_detalhe || {}, 'Nenhum canal no período');
             renderFunilCampanha(dados.funil_por_campanha || {}, dados.abandono_por_campanha || {});
         }
 
+        function renderCampanhas(mapa) {
+            const tbody = document.getElementById('tabela-campanha');
+            const linhas = Object.entries(mapa || {});
+            if (linhas.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma campanha no período</td></tr>';
+                return;
+            }
+
+            linhas.sort((a, b) => (b[1].valor_pago - a[1].valor_pago) || (b[1].cliques - a[1].cliques));
+            tbody.innerHTML = linhas.map(([nome, d]) => `
+                <tr>
+                    <td style="font-weight:600;">${nome}</td>
+                    <td>${(d.cliques || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.usuarios || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.entraram_ddmpay || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.com_acordo || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.pagaram || 0).toLocaleString('pt-BR')}</td>
+                    <td style="font-weight:600;">R$ ${(d.valor_pago || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                    <td><button type="button" class="btn-delete-row" data-campanha="${encodeURIComponent(nome)}">Excluir</button></td>
+                </tr>
+            `).join('');
+
+            tbody.querySelectorAll('.btn-delete-row').forEach(btn => {
+                btn.addEventListener('click', () => excluirCampanha(decodeURIComponent(btn.dataset.campanha)));
+            });
+        }
+
+        async function excluirCampanha(campanha) {
+            const ok = confirm(`Excluir a campanha "${campanha}" dos rastreios locais?\n\nIsso não altera o banco DDMPay.`);
+            if (!ok) return;
+
+            const response = await fetch(`/api/campanha/${encodeURIComponent(campanha)}`, { method: 'DELETE' });
+            if (!response.ok) {
+                alert('Não foi possível excluir a campanha.');
+                return;
+            }
+
+            await carregarDados();
+        }
         function renderCampanhaDia(linhas) {
             const tbody = document.getElementById('tabela-campanha-dia');
             if (!linhas || linhas.length === 0) {
