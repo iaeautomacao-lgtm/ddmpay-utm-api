@@ -520,6 +520,15 @@
             </div>
 
             <div class="kpi-card glass-panel">
+                <div class="kpi-icon">CPF</div>
+                <div class="kpi-label">Entraram no DDMPay</div>
+                <div class="kpi-value" id="total-entraram-ddmpay">0</div>
+                <div class="kpi-change">
+                    <span class="change-neutral" id="change-entraram-ddmpay">CPF localizado em ddmpay_acessos</span>
+                </div>
+            </div>
+
+            <div class="kpi-card glass-panel">
                 <div class="kpi-icon">🤝</div>
                 <div class="kpi-label">Acordos Gerados</div>
                 <div class="kpi-value" id="total-acordos">0</div>
@@ -628,13 +637,14 @@
                         <th>Campanha</th>
                         <th>Cliques</th>
                         <th>Usuários Únicos</th>
+                        <th>Entraram DDMPay</th>
                         <th>Com Acordo</th>
                         <th>Pagaram</th>
                         <th>Valor Pago (R$)</th>
                     </tr>
                 </thead>
                 <tbody id="tabela-campanha">
-                    <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
+                    <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -674,13 +684,14 @@
                         <th>Canal</th>
                         <th>Cliques</th>
                         <th>Usuários Únicos</th>
+                        <th>Entraram DDMPay</th>
                         <th>Com Acordo</th>
                         <th>Pagaram</th>
                         <th>Valor Pago (R$)</th>
                     </tr>
                 </thead>
                 <tbody id="tabela-canal">
-                    <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
+                    <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -739,13 +750,14 @@
         }
 
         function atualizarKPIs(dados) {
-            const { disparos, cliques, acordos, pagaram, valor_ddmpay, ticket_medio } = dados.resumo;
+            const { disparos, cliques, entraram_ddmpay, acordos, pagaram, valor_ddmpay, ticket_medio } = dados.resumo;
 
             // Taxa de acordos = usuarios com acordo / usuarios unicos que clicaram (funil real)
             const taxa = disparos > 0 ? ((acordos / disparos) * 100).toFixed(1) : 0;
 
             animarValor('total-disparos', disparos);
             animarValor('total-cliques', cliques);
+            animarValor('total-entraram-ddmpay', entraram_ddmpay || 0);
             animarValor('total-acordos', acordos);
 
             document.getElementById('valor-ddmpay').textContent = valor_ddmpay > 0
@@ -757,6 +769,9 @@
                 : 'R$ 0,00';
 
             document.getElementById('change-cliques').textContent = `Total de cliques no período`;
+            document.getElementById('change-entraram-ddmpay').textContent = entraram_ddmpay > 0
+                ? `${entraram_ddmpay} chegaram apos informar CPF`
+                : 'Sem CPF localizado no DDMPay';
             document.getElementById('change-acordos').textContent = acordos > 0 ? `${acordos} usuários com acordo` : 'Nenhum acordo cruzado no período';
             document.getElementById('change-taxa').textContent = disparos > 0 ? `${acordos} de ${disparos} usuários fecharam` : 'Baseado em usuários únicos';
             document.getElementById('change-valor').textContent = pagaram > 0
@@ -900,16 +915,18 @@
             chartFunil = new Chart(document.getElementById('chartFunil'), {
                 type: 'bar',
                 data: {
-                    labels: ['Total de Cliques', 'Acordos Fechados', 'Valor Arrecadado (R$)'],
+                    labels: ['Total de Cliques', 'Entraram DDMPay', 'Acordos Fechados', 'Valor Arrecadado (R$)'],
                     datasets: [{
                         label: 'Volume',
                         data: [
                             dados.resumo.cliques,
+                            dados.resumo.entraram_ddmpay || 0,
                             dados.resumo.acordos,
                             dados.resumo.valor_ddmpay / 1000  // Dividir por 1000 para caber no gráfico
                         ],
                         backgroundColor: [
                             '#94A3B8',
+                            '#3B82F6',
                             COR_PRIMARIA,
                             '#10B981'
                         ],
@@ -1007,7 +1024,7 @@
             const tbody = document.getElementById(tbodyId);
             const linhas = Object.entries(mapa);
             if (linhas.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">${vazioMsg}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">${vazioMsg}</td></tr>`;
                 return;
             }
             // ordena por valor pago desc, depois cliques desc
@@ -1017,6 +1034,7 @@
                     <td style="font-weight:600;">${nome}</td>
                     <td>${(d.cliques || 0).toLocaleString('pt-BR')}</td>
                     <td>${(d.usuarios || 0).toLocaleString('pt-BR')}</td>
+                    <td>${(d.entraram_ddmpay || 0).toLocaleString('pt-BR')}</td>
                     <td>${(d.com_acordo || 0).toLocaleString('pt-BR')}</td>
                     <td>${(d.pagaram || 0).toLocaleString('pt-BR')}</td>
                     <td style="font-weight:600;">R$ ${(d.valor_pago || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
@@ -1046,6 +1064,7 @@
                     resumo: {
                         disparos: m.total_cliques_unicos || 0,
                         cliques: m.total_cliques,
+                        entraram_ddmpay: m.total_entraram_ddmpay || 0,
                         acordos: m.total_acordos || 0,
                         pagaram: m.total_pagaram || 0,
                         valor_ddmpay: m.valor_total || 0,

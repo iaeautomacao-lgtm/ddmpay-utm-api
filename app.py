@@ -557,6 +557,7 @@ def api_metricas():
         # "pago" = valor_pago > 0 (vem de acordos_pagamentos.valor_pago / baixa_local).
         total_acordos = 0      # usuarios distintos com acordo
         total_pagaram = 0      # usuarios distintos que pagaram
+        total_entraram_ddmpay = 0
         valor_total = 0.0      # R$ pago (dedup por acordo)
         ticket_medio = 0.0
         volume_por_canal = {}  # R$ pago por canal
@@ -663,6 +664,58 @@ def api_metricas():
         except Exception as e:
             print(f"[FUNIL EVENTOS] usando eventos locais: {e}")
 
+        tracked_by_par1 = {}
+        for ev in event_rows:
+            if ev.get('etapa') != 'click':
+                continue
+            par1_ev = (ev.get('par1') or '').strip()
+            if not par1_ev:
+                continue
+            tracked_by_par1.setdefault(par1_ev, []).append(ev)
+
+        if tracked_by_par1:
+            try:
+                placeholders = ','.join(['%s'] * len(tracked_by_par1))
+                cursor.execute(f"""
+                    SELECT documento, MAX(data) as data,
+                           MAX(CASE WHEN acordo IS NOT NULL AND acordo <> '' THEN 1 ELSE 0 END) as tem_acordo,
+                           MAX(CASE WHEN valor > 0 THEN 1 ELSE 0 END) as tem_valor
+                    FROM ddm_ddmadv.ddmpay_acessos
+                    WHERE DATE(data) BETWEEN %s AND %s
+                      AND documento IN ({placeholders})
+                    GROUP BY documento
+                """, [data_inicio, data_fim, *tracked_by_par1.keys()])
+                for row in cursor.fetchall():
+                    documento = str(row.get('documento') or '').strip()
+                    for click_ev in tracked_by_par1.get(documento, []):
+                        base_ev = {
+                            'tid': click_ev.get('tid'),
+                            'par1': click_ev.get('par1'),
+                            'par2': click_ev.get('par2'),
+                            'par3': click_ev.get('par3'),
+                            'pagina_url': '',
+                            'created_at': row.get('data') or datetime.now(),
+                        }
+                        event_rows.append({
+                            **base_ev,
+                            'etapa': 'cpf_submit',
+                            'etapa_label': 'Informou o CPF / entrou no DDMPay',
+                        })
+                        if row.get('tem_acordo'):
+                            event_rows.append({
+                                **base_ev,
+                                'etapa': 'payment_view',
+                                'etapa_label': 'Gerou acordo no DDMPay',
+                            })
+                        if row.get('tem_valor'):
+                            event_rows.append({
+                                **base_ev,
+                                'etapa': 'paid',
+                                'etapa_label': 'Pagou',
+                            })
+            except Exception as e:
+                print(f"[DDMPAY ACESSOS] nao foi possivel cruzar etapas: {e}")
+
         ordem_etapas = {
             'click': 1,
             'cpf_view': 2,
@@ -682,6 +735,9 @@ def api_metricas():
         local_click_days = {}
         local_channel_users = set()
         local_campaign_users = set()
+        entered_users = set()
+        entered_channel_users = set()
+        entered_campaign_users = set()
 
         for ev in event_rows:
             campanha = (ev.get('par3') or '').strip() or '(sem campanha)'
@@ -718,6 +774,22 @@ def api_metricas():
                     data_key = str(created_at.date())
                     local_click_days[data_key] = local_click_days.get(data_key, 0) + 1
 
+            if etapa in ('cpf_submit', 'payment_view', 'payment_start', 'paid'):
+                entered_users.add(cliente_key)
+                canal_nome = label_canal(ev.get('par2'))
+                por_canal_detalhe.setdefault(canal_nome, {
+                    'cliques': 0, 'usuarios': 0, 'com_acordo': 0, 'pagaram': 0, 'valor_pago': 0
+                })
+                if (canal_nome, cliente_key) not in entered_channel_users:
+                    entered_channel_users.add((canal_nome, cliente_key))
+                    por_canal_detalhe[canal_nome]['entraram_ddmpay'] = por_canal_detalhe[canal_nome].get('entraram_ddmpay', 0) + 1
+                por_campanha.setdefault(campanha, {
+                    'cliques': 0, 'usuarios': 0, 'com_acordo': 0, 'pagaram': 0, 'valor_pago': 0
+                })
+                if (campanha, cliente_key) not in entered_campaign_users:
+                    entered_campaign_users.add((campanha, cliente_key))
+                    por_campanha[campanha]['entraram_ddmpay'] = por_campanha[campanha].get('entraram_ddmpay', 0) + 1
+
             atual = ultimos_por_cliente.get((campanha, cliente_key))
             if (
                 atual is None
@@ -728,6 +800,7 @@ def api_metricas():
 
         total_cliques += local_clicks
         total_cliques_unicos += len(local_click_users)
+        total_entraram_ddmpay = len(entered_users)
 
         for data_key, cliques in local_click_days.items():
             tendencia.append({'data': data_key, 'cliques': cliques, 'canal': 'Links curtos'})
@@ -768,6 +841,7 @@ def api_metricas():
                 'por_campanha': por_campanha,
                 'funil_por_campanha': funil_por_campanha,
                 'abandono_por_campanha': abandono_por_campanha,
+                'total_entraram_ddmpay': total_entraram_ddmpay,
                 'total_acordos': total_acordos,
                 'total_pagaram': total_pagaram,
                 'valor_total': valor_total,
