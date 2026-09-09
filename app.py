@@ -12,6 +12,9 @@ from mysql.connector import Error
 app = Flask(__name__)
 
 CHECKOUT_URL = os.environ.get('DDMPAY_CHECKOUT_URL', 'https://ddmpay.ddmacordos.com/acesso/')
+DATA_DIR = os.environ.get('DDMPAY_DATA_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data'))
+SHORT_LINKS_FILE = os.path.join(DATA_DIR, 'short_links.json')
+FUNNEL_EVENTS_FILE = os.path.join(DATA_DIR, 'funnel_events.jsonl')
 FUNIL_ETAPAS = {
     'click': 'Clicou no link',
     'cpf_view': 'Chegou na tela do CPF',
@@ -104,10 +107,92 @@ def gerar_codigo_curto(tamanho=7):
     return ''.join(random.choice(alfabeto) for _ in range(tamanho))
 
 
+def ensure_data_dir():
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+
+def load_short_links_file():
+    try:
+        ensure_data_dir()
+        if not os.path.exists(SHORT_LINKS_FILE):
+            return {}
+        with open(SHORT_LINKS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[SHORT LINK FILE] erro ao ler: {e}")
+        return {}
+
+
+def save_short_links_file(links):
+    ensure_data_dir()
+    with open(SHORT_LINKS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(links, f, ensure_ascii=False)
+
+
+def criar_link_curto_file(par1, par2, par3, tid):
+    links = load_short_links_file()
+    for _ in range(12):
+        codigo = gerar_codigo_curto()
+        if codigo in links:
+            continue
+        links[codigo] = {
+            'codigo': codigo,
+            'par1': par1,
+            'par2': par2,
+            'par3': par3,
+            'tid': tid,
+            'created_at': datetime.now().isoformat()
+        }
+        save_short_links_file(links)
+        return codigo
+    return None
+
+
+def buscar_link_curto_file(codigo):
+    return load_short_links_file().get(codigo)
+
+
+def salvar_evento_funil_file(tid, par1, par2, par3, etapa, pagina_url='', metadata=None):
+    ensure_data_dir()
+    row = {
+        'tid': tid or None,
+        'par1': par1 or None,
+        'par2': par2 or None,
+        'par3': par3 or None,
+        'etapa': etapa,
+        'etapa_label': FUNIL_ETAPAS.get(etapa, etapa),
+        'pagina_url': pagina_url or None,
+        'metadata': metadata or {},
+        'created_at': datetime.now().isoformat()
+    }
+    with open(FUNNEL_EVENTS_FILE, 'a', encoding='utf-8') as f:
+        f.write(json.dumps(row, ensure_ascii=False) + '\n')
+    return True
+
+
+def load_funil_eventos_file(data_inicio, data_fim):
+    if not os.path.exists(FUNNEL_EVENTS_FILE):
+        return []
+    inicio = datetime.strptime(data_inicio, '%Y-%m-%d').date()
+    fim = datetime.strptime(data_fim, '%Y-%m-%d').date()
+    rows = []
+    with open(FUNNEL_EVENTS_FILE, 'r', encoding='utf-8') as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+                created = datetime.fromisoformat(row.get('created_at')).date()
+                if inicio <= created <= fim:
+                    row['created_at'] = datetime.fromisoformat(row['created_at'])
+                    rows.append(row)
+            except Exception:
+                continue
+    return rows
+
+
 def criar_link_curto_db(par1, par2, par3, tid):
     cnx = get_db_connection()
     if not cnx:
-        return None
+        return criar_link_curto_file(par1, par2, par3, tid)
 
     try:
         cursor = cnx.cursor()
@@ -123,7 +208,10 @@ def criar_link_curto_db(par1, par2, par3, tid):
                 return codigo
             except mysql.connector.IntegrityError:
                 continue
-        return None
+        return criar_link_curto_file(par1, par2, par3, tid)
+    except Exception as e:
+        print(f"[SHORT LINK DB] usando arquivo local: {e}")
+        return criar_link_curto_file(par1, par2, par3, tid)
     finally:
         cursor.close()
         cnx.close()
@@ -132,7 +220,7 @@ def criar_link_curto_db(par1, par2, par3, tid):
 def buscar_link_curto_db(codigo):
     cnx = get_db_connection()
     if not cnx:
-        return None
+        return buscar_link_curto_file(codigo)
 
     try:
         cursor = cnx.cursor(dictionary=True)
@@ -142,7 +230,11 @@ def buscar_link_curto_db(codigo):
             WHERE codigo = %s
             LIMIT 1
         """, (codigo,))
-        return cursor.fetchone()
+        row = cursor.fetchone()
+        return row or buscar_link_curto_file(codigo)
+    except Exception as e:
+        print(f"[SHORT LINK DB] buscando em arquivo local: {e}")
+        return buscar_link_curto_file(codigo)
     finally:
         cursor.close()
         cnx.close()
@@ -151,27 +243,36 @@ def buscar_link_curto_db(codigo):
 def salvar_evento_funil(tid, par1, par2, par3, etapa, pagina_url='', metadata=None):
     cnx = get_db_connection()
     if not cnx:
-        return False
+        return salvar_evento_funil_file(tid, par1, par2, par3, etapa, pagina_url, metadata)
 
-    cursor = cnx.cursor()
-    cursor.execute("""
-        INSERT INTO ddm_ddmadv.ddmpay_funil_eventos
-            (tid, par1, par2, par3, etapa, etapa_label, pagina_url, metadata, created_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
-    """, (
-        tid or None,
-        par1 or None,
-        par2 or None,
-        par3 or None,
-        etapa,
-        FUNIL_ETAPAS[etapa],
-        pagina_url or None,
-        json.dumps(metadata or {}, ensure_ascii=False),
-    ))
-    cnx.commit()
-    cursor.close()
-    cnx.close()
-    return True
+    try:
+        cursor = cnx.cursor()
+        cursor.execute("""
+            INSERT INTO ddm_ddmadv.ddmpay_funil_eventos
+                (tid, par1, par2, par3, etapa, etapa_label, pagina_url, metadata, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+        """, (
+            tid or None,
+            par1 or None,
+            par2 or None,
+            par3 or None,
+            etapa,
+            FUNIL_ETAPAS[etapa],
+            pagina_url or None,
+            json.dumps(metadata or {}, ensure_ascii=False),
+        ))
+        cnx.commit()
+        cursor.close()
+        cnx.close()
+        return True
+    except Exception as e:
+        print(f"[FUNIL DB] usando arquivo local: {e}")
+        try:
+            cursor.close()
+            cnx.close()
+        except Exception:
+            pass
+        return salvar_evento_funil_file(tid, par1, par2, par3, etapa, pagina_url, metadata)
 
 
 # ============================================================================
@@ -543,7 +644,8 @@ def api_metricas():
             print(f"[VIEW completo] erro: {e}")
 
         # Eventos finos do DDMPay: permitem saber a ultima tela atingida.
-        # A tabela e alimentada pelo endpoint /api/funil-evento.
+        # Usa MySQL quando existir e arquivo local como fallback para cPanel sem CREATE TABLE.
+        event_rows = load_funil_eventos_file(data_inicio, data_fim)
         try:
             cursor.execute("""
                 SELECT tid, par1, par2, par3, etapa, etapa_label, pagina_url, created_at
@@ -551,59 +653,94 @@ def api_metricas():
                 WHERE DATE(created_at) BETWEEN %s AND %s
                 ORDER BY created_at ASC
             """, (data_inicio, data_fim))
-            event_rows = cursor.fetchall()
+            event_rows.extend(cursor.fetchall())
+        except Exception as e:
+            print(f"[FUNIL EVENTOS] usando eventos locais: {e}")
 
-            ordem_etapas = {
-                'click': 1,
-                'cpf_view': 2,
-                'cpf_submit': 3,
-                'payment_view': 4,
-                'payment_start': 5,
-                'paid': 6,
+        ordem_etapas = {
+            'click': 1,
+            'cpf_view': 2,
+            'cpf_submit': 3,
+            'payment_view': 4,
+            'payment_start': 5,
+            'paid': 6,
+        }
+
+        def key_evento(ev):
+            return ev.get('tid') or ev.get('par1') or ''
+
+        campanhas_eventos = {}
+        ultimos_por_cliente = {}
+        local_clicks = 0
+        local_click_users = set()
+        local_click_days = {}
+        local_channel_users = set()
+        local_campaign_users = set()
+
+        for ev in event_rows:
+            campanha = (ev.get('par3') or '').strip() or '(sem campanha)'
+            cliente_key = key_evento(ev)
+            if not cliente_key:
+                continue
+
+            camp = campanhas_eventos.setdefault(campanha, {})
+            etapa = ev.get('etapa')
+            etapa_bucket = camp.setdefault(etapa, set())
+            etapa_bucket.add(cliente_key)
+
+            if etapa == 'click':
+                local_clicks += 1
+                local_click_users.add(cliente_key)
+                canal_nome = label_canal(ev.get('par2'))
+                por_canal[canal_nome] = por_canal.get(canal_nome, 0) + 1
+                por_canal_detalhe.setdefault(canal_nome, {
+                    'cliques': 0, 'usuarios': 0, 'com_acordo': 0, 'pagaram': 0, 'valor_pago': 0
+                })
+                por_canal_detalhe[canal_nome]['cliques'] += 1
+                if (canal_nome, cliente_key) not in local_channel_users:
+                    local_channel_users.add((canal_nome, cliente_key))
+                    por_canal_detalhe[canal_nome]['usuarios'] += 1
+                por_campanha.setdefault(campanha, {
+                    'cliques': 0, 'usuarios': 0, 'com_acordo': 0, 'pagaram': 0, 'valor_pago': 0
+                })
+                por_campanha[campanha]['cliques'] += 1
+                if (campanha, cliente_key) not in local_campaign_users:
+                    local_campaign_users.add((campanha, cliente_key))
+                    por_campanha[campanha]['usuarios'] += 1
+                created_at = ev.get('created_at')
+                if isinstance(created_at, datetime):
+                    data_key = str(created_at.date())
+                    local_click_days[data_key] = local_click_days.get(data_key, 0) + 1
+
+            atual = ultimos_por_cliente.get((campanha, cliente_key))
+            if (
+                atual is None
+                or ordem_etapas.get(etapa, 0) > ordem_etapas.get(atual.get('etapa'), 0)
+                or ev.get('created_at') > atual.get('created_at')
+            ):
+                ultimos_por_cliente[(campanha, cliente_key)] = ev
+
+        total_cliques += local_clicks
+        total_cliques_unicos += len(local_click_users)
+
+        for data_key, cliques in local_click_days.items():
+            tendencia.append({'data': data_key, 'cliques': cliques, 'canal': 'Links curtos'})
+
+        for campanha, etapas in campanhas_eventos.items():
+            funil_por_campanha[campanha] = {
+                etapa: len(clientes)
+                for etapa, clientes in etapas.items()
             }
 
-            def key_evento(ev):
-                return ev.get('tid') or ev.get('par1') or ''
-
-            campanhas_eventos = {}
-            ultimos_por_cliente = {}
-
-            for ev in event_rows:
-                campanha = (ev.get('par3') or '').strip() or '(sem campanha)'
-                cliente_key = key_evento(ev)
-                if not cliente_key:
-                    continue
-
-                camp = campanhas_eventos.setdefault(campanha, {})
-                etapa = ev.get('etapa')
-                etapa_bucket = camp.setdefault(etapa, set())
-                etapa_bucket.add(cliente_key)
-
-                atual = ultimos_por_cliente.get((campanha, cliente_key))
-                if (
-                    atual is None
-                    or ordem_etapas.get(etapa, 0) > ordem_etapas.get(atual.get('etapa'), 0)
-                    or ev.get('created_at') > atual.get('created_at')
-                ):
-                    ultimos_por_cliente[(campanha, cliente_key)] = ev
-
-            for campanha, etapas in campanhas_eventos.items():
-                funil_por_campanha[campanha] = {
-                    etapa: len(clientes)
-                    for etapa, clientes in etapas.items()
-                }
-
-            for (campanha, _cliente_key), ev in ultimos_por_cliente.items():
-                bucket = abandono_por_campanha.setdefault(campanha, {})
-                etapa = ev.get('etapa') or 'desconhecido'
-                item = bucket.setdefault(etapa, {
-                    'etapa_label': ev.get('etapa_label') or FUNIL_ETAPAS.get(etapa, etapa),
-                    'clientes': 0,
-                    'ultima_url': ev.get('pagina_url') or '',
-                })
-                item['clientes'] += 1
-        except Exception as e:
-            print(f"[FUNIL EVENTOS] tabela indisponivel ou erro: {e}")
+        for (campanha, _cliente_key), ev in ultimos_por_cliente.items():
+            bucket = abandono_por_campanha.setdefault(campanha, {})
+            etapa = ev.get('etapa') or 'desconhecido'
+            item = bucket.setdefault(etapa, {
+                'etapa_label': ev.get('etapa_label') or FUNIL_ETAPAS.get(etapa, etapa),
+                'clientes': 0,
+                'ultima_url': ev.get('pagina_url') or '',
+            })
+            item['clientes'] += 1
 
         cursor.close()
         cnx.close()
