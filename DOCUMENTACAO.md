@@ -119,10 +119,10 @@ Aplicação Flask. Conexão MySQL via env vars com fallback hardcoded.
 ### Configuração de banco
 ```python
 MYSQL_CONFIG = {
-    'host': os.environ.get('MYSQL_HOST', '162.214.155.190'),
-    'user': os.environ.get('MYSQL_USER', 'ddm_ia'),
-    'password': os.environ.get('MYSQL_PASSWORD', '***'),
-    'database': os.environ.get('MYSQL_DATABASE', 'ddm_ddmadv'),
+    'host': os.environ.get('MYSQL_HOST'),
+    'user': os.environ.get('MYSQL_USER'),
+    'password': os.environ.get('MYSQL_PASSWORD'),
+    'database': os.environ.get('MYSQL_DATABASE'),
     'port': int(os.environ.get('MYSQL_PORT', 3306)),
 }
 ```
@@ -184,8 +184,8 @@ MYSQL_CONFIG = {
 
 ## 6. Banco de Dados
 
-- **Host:** `162.214.155.190` · **DB:** `ddm_ddmadv` · **User app:** `ddm_ia`
-- **Permissões `ddm_ia`:** SELECT, CREATE VIEW, SHOW VIEW, TRIGGER.
+- Banco configurado por variáveis de ambiente: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`, `MYSQL_PORT`.
+- Permissões do usuário da aplicação: SELECT, CREATE VIEW, SHOW VIEW, TRIGGER.
   **Não tem:** CREATE TABLE, ALTER, DROP, INSERT, UPDATE.
   → Por isso a solução usa **VIEW** (não tabela). DDLs de tabela/DROP dependem do DBA (Jair).
 
@@ -229,7 +229,7 @@ Cruza clique × devedor × acordo, com pagamento agregado por acordo.
 - Filtro `url LIKE '%par1='` e `par1 <> ''`.
 - `GROUP BY (clique, devedor, acordo)` com `SUM(valor_pago)`, `MAX(baixa_local)`.
 
-> ⚠️ Existem 4 VIEWs antigas de iteração (`vw_ddmpay_funil`, `_v2`, `_v3`, `_v4`) que **devem ser removidas pelo DBA** (`ddm_ia` não tem DROP). A VIEW válida é **`vw_ddmpay_completo`**.
+> ⚠️ Existem 4 VIEWs antigas de iteração (`vw_ddmpay_funil`, `_v2`, `_v3`, `_v4`) que **devem ser removidas pelo DBA**. A VIEW válida é **`vw_ddmpay_completo`**.
 
 ```sql
 -- limpeza (rodar com usuário admin)
@@ -301,7 +301,7 @@ python app.py            # serve em http://127.0.0.1:5000
 
 ## 10. Segurança / Boas Práticas (pendências)
 - 🔴 **Credenciais hardcoded** em `app.py` e `api/acesso.py` (e mencionadas no README). Migrar 100% para env vars no Render e **remover do código/histórico**.
-- Banco acessível por IP externo com o usuário `ddm_ia` — manter privilégios mínimos (já é só leitura + view).
+- Banco acessível por IP externo: manter privilégios mínimos para o usuário da aplicação.
 - `/webhook/pagamento` legado deveria ser removido (sem efeito, gera ruído de log).
 
 ---
@@ -309,7 +309,7 @@ python app.py            # serve em http://127.0.0.1:5000
 ## 11. Regras do Projeto
 - Proibido `DELETE`/alterações destrutivas no banco.
 - Mexer apenas em tabelas/views criadas para este projeto.
-- `ddm_ia` é leitura + `CREATE VIEW`; qualquer DDL de tabela/DROP é feito pelo DBA.
+- O usuário da aplicação é leitura + `CREATE VIEW`; qualquer DDL de tabela/DROP é feito pelo DBA.
 - Sempre apresentar plano e aguardar aprovação antes de editar arquivos.
 
 ---
@@ -325,5 +325,5 @@ python app.py            # serve em http://127.0.0.1:5000
 ---
 
 ## 13. Histórico
-- Plano original (Vercel serverless + tabela `conversoes` + webhook n8n) **abandonado** — `ddm_ia` não pode criar tabela; arquitetura migrou para **VIEW de cruzamento** sobre a base existente.
+- Plano original (Vercel serverless + tabela `conversoes` + webhook n8n) **abandonado** porque o usuário da aplicação não pode criar tabela; arquitetura migrou para **VIEW de cruzamento** sobre a base existente.
 - Registro detalhado da implementação: `../REGISTRO_SESSAO_2026-06-18.txt`.

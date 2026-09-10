@@ -10,10 +10,10 @@ Rode no MySQL:
 SOURCE criar_tabela_funil_eventos.sql;
 ```
 
-Se o usuario `ddm_ia` ainda nao tiver permissao de escrita nessa tabela, rode com usuario admin:
+Se o usuario da aplicacao ainda nao tiver permissao de escrita nessa tabela, rode com usuario admin:
 
 ```sql
-GRANT SELECT, INSERT ON ddm_ddmadv.ddmpay_funil_eventos TO 'ddm_ia'@'%';
+GRANT SELECT, INSERT ON ddm_ddmadv.ddmpay_funil_eventos TO '<MYSQL_USER>'@'%';
 ```
 
 ## 2. Preservar parametros

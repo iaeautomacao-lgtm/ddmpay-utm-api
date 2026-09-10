@@ -6,14 +6,15 @@ GET /api/acesso?par1=XXX&par2=YYY&par3=ZZZ
 from flask import Flask, request, redirect
 import mysql.connector
 import json
+import os
 
 # Configurações do banco de dados
 DB_CONFIG = {
-    'host': '162.214.155.190',
-    'user': 'ddm_ia',
-    'password': 'o#G3AHP1O}dt',
-    'database': 'ddm_ddmadv',
-    'port': 3306
+    'host': os.environ.get('MYSQL_HOST'),
+    'user': os.environ.get('MYSQL_USER'),
+    'password': os.environ.get('MYSQL_PASSWORD'),
+    'database': os.environ.get('MYSQL_DATABASE'),
+    'port': int(os.environ.get('MYSQL_PORT', 3306))
 }
 
 # URL de redirecionamento
@@ -23,6 +24,10 @@ CHECKOUT_URL = 'https://ddmpay.ddmacordos.com/acesso/'
 def get_db_connection():
     """Cria conexão com MySQL"""
     try:
+        missing = [key for key, value in DB_CONFIG.items() if key != 'port' and not value]
+        if missing:
+            print(f"Variaveis de banco ausentes: {', '.join(missing)}")
+            return None
         return mysql.connector.connect(**DB_CONFIG)
     except Exception as e:
         print(f"❌ Erro ao conectar no banco: {e}")

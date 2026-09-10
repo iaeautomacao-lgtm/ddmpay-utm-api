@@ -37,5 +37,5 @@ CREATE TABLE IF NOT EXISTS ddmpay_funil_eventos (
 );
 
 -- Permissao necessaria para o usuario da aplicacao, se ele ainda nao tiver INSERT:
--- GRANT SELECT, INSERT ON ddm_ddmadv.ddmpay_funil_eventos TO 'ddm_ia'@'%';
--- GRANT SELECT, INSERT ON ddm_ddmadv.ddmpay_short_links TO 'ddm_ia'@'%';
+-- GRANT SELECT, INSERT ON ddm_ddmadv.ddmpay_funil_eventos TO '<MYSQL_USER>'@'%';
+-- GRANT SELECT, INSERT ON ddm_ddmadv.ddmpay_short_links TO '<MYSQL_USER>'@'%';

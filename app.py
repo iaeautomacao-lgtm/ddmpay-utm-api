@@ -17,6 +17,21 @@ def print(*args, **kwargs):
 
 app = Flask(__name__)
 
+def load_env_file():
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    if not os.path.exists(env_path):
+        return
+    with open(env_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, value = line.split('=', 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+load_env_file()
+
 CHECKOUT_URL = os.environ.get('DDMPAY_CHECKOUT_URL', 'https://ddmpay.ddmacordos.com/acesso/')
 DATA_DIR = os.environ.get('DDMPAY_DATA_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data'))
 SHORT_LINKS_FILE = os.path.join(DATA_DIR, 'short_links.json')
@@ -35,10 +50,10 @@ FUNIL_ETAPAS = {
 # CONFIGURAÇÃO SEGURA DO BANCO (usa variáveis de ambiente)
 # ============================================================================
 MYSQL_CONFIG = {
-    'host': os.environ.get('MYSQL_HOST', '162.214.155.190'),
-    'user': os.environ.get('MYSQL_USER', 'ddm_ia'),
-    'password': os.environ.get('MYSQL_PASSWORD', 'o#G3AHP1O}dt'),
-    'database': os.environ.get('MYSQL_DATABASE', 'ddm_ddmadv'),
+    'host': os.environ.get('MYSQL_HOST'),
+    'user': os.environ.get('MYSQL_USER'),
+    'password': os.environ.get('MYSQL_PASSWORD'),
+    'database': os.environ.get('MYSQL_DATABASE'),
     'port': int(os.environ.get('MYSQL_PORT', 3306))
 }
 
@@ -48,6 +63,11 @@ MYSQL_CONFIG = {
 
 def get_db_connection():
     """Cria conexão segura com o banco"""
+    missing = [key for key, value in MYSQL_CONFIG.items() if key != 'port' and not value]
+    if missing:
+        print(f"[DB ERROR] variaveis ausentes: {', '.join(missing)}")
+        return None
+
     try:
         cnx = mysql.connector.connect(**MYSQL_CONFIG)
         return cnx
