@@ -517,6 +517,9 @@
                         <option value="email">E-mail</option>
                         <option value="rcs">RCS</option>
                     </select>
+                    <select id="campanha-filter">
+                        <option value="">Todas as Campanhas</option>
+                    </select>
                     <input type="date" id="data-inicio" title="Data Inicial">
                     <input type="date" id="data-fim" title="Data Final">
                 </div>
@@ -776,6 +779,10 @@
             document.getElementById('data-inicio').valueAsDate = trinta_dias_atras;
             document.getElementById('data-fim').valueAsDate = hoje;
 
+            ['canal-filter', 'campanha-filter', 'data-inicio', 'data-fim'].forEach(id => {
+                document.getElementById(id).addEventListener('change', carregarDados);
+            });
+
             carregarDados();
             setInterval(carregarDados, 30000);
         });
@@ -789,6 +796,7 @@
                 // Carregar dados REAIS do banco via API
                 const dados = await carregarMetricasReais();
 
+                atualizarFiltroCampanhas(dados.por_campanha || {});
                 atualizarKPIs(dados);
                 atualizarGraficos(dados);
                 atualizarTabela(dados);
@@ -801,6 +809,40 @@
                 console.error('Erro ao carregar dados:', erro);
                 document.getElementById('last-updated').textContent = '⚠️ Falha na conexão';
             }
+        }
+
+        function atualizarFiltroCampanhas(mapaCampanhas) {
+            const select = document.getElementById('campanha-filter');
+            const selecionada = select.value;
+            const nomes = new Set();
+
+            Array.from(select.options).forEach(option => {
+                if (option.value) nomes.add(option.value);
+            });
+            Object.keys(mapaCampanhas || {}).forEach(nome => nomes.add(nome));
+
+            const ordenadas = Array.from(nomes).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+            select.innerHTML = '<option value="">Todas as Campanhas</option>' + ordenadas.map(nome => {
+                const selected = nome === selecionada ? ' selected' : '';
+                return `<option value="${escapeHtml(nome)}"${selected}>${escapeHtml(nome)}</option>`;
+            }).join('');
+
+            if (selecionada && !ordenadas.includes(selecionada)) {
+                const option = document.createElement('option');
+                option.value = selecionada;
+                option.textContent = selecionada;
+                option.selected = true;
+                select.appendChild(option);
+            }
+        }
+
+        function escapeHtml(valor) {
+            return String(valor ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
 
         function atualizarKPIs(dados) {
@@ -1162,9 +1204,18 @@
                 // Pegar datas dos filtros
                 const dataInicio = document.getElementById('data-inicio').value;
                 const dataFim = document.getElementById('data-fim').value;
+                const canal = document.getElementById('canal-filter').value;
+                const campanha = document.getElementById('campanha-filter').value;
                 
                 // Chamar API
-                const response = await fetch(`/api/metricas?data_inicio=${dataInicio}&data_fim=${dataFim}`);
+                const params = new URLSearchParams({
+                    data_inicio: dataInicio,
+                    data_fim: dataFim
+                });
+                if (canal) params.set('canal', canal);
+                if (campanha) params.set('campanha', campanha);
+
+                const response = await fetch(`/api/metricas?${params.toString()}`);
                 
                 if (!response.ok) {
                     throw new Error(`Erro na API: ${response.status}`);

@@ -1,5 +1,5 @@
 from flask import Flask, request, redirect, jsonify, send_file
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 import builtins
 import json
 import os
@@ -567,6 +567,7 @@ def api_metricas():
       - data_inicio: YYYY-MM-DD (default: últimos 30 dias)
       - data_fim: YYYY-MM-DD (default: hoje)
       - canal: sms|whatsapp|email|rcs (default: todos)
+      - campanha: par3/lote especifico (default: todas)
     
     Retorna JSON com:
       - total_cliques
@@ -581,6 +582,9 @@ def api_metricas():
             (datetime.strptime(data_fim, '%Y-%m-%d') - timedelta(days=dias)).strftime('%Y-%m-%d'))
         
         canal_filtro = request.args.get('canal', 'todos').lower()
+        if canal_filtro in ('', 'todos'):
+            canal_filtro = ''
+        campanha_filtro = (request.args.get('campanha') or '').strip()
         campanhas_excluidas = load_excluded_campaigns()
         
         # Conectar ao banco
@@ -591,21 +595,48 @@ def api_metricas():
         cursor = cnx.cursor(dictionary=True)
         
         # QUERY 1: Total de cliques no período + clientes únicos
-        query_total = """
+        filtros_links = []
+        params_links = [data_inicio, data_fim]
+        if canal_filtro:
+            filtros_links.append("AND url LIKE %s")
+            params_links.append(f'%par2={canal_filtro}%')
+        if campanha_filtro:
+            filtros_links.append("AND (url LIKE %s OR url LIKE %s)")
+            params_links.extend([
+                f'%par3={campanha_filtro}%',
+                f'%par3={quote_plus(campanha_filtro)}%',
+            ])
+        filtros_links_sql = "\n            ".join(filtros_links)
+
+        query_total = f"""
             SELECT
                 COUNT(*) as total,
                 COUNT(DISTINCT SUBSTRING_INDEX(SUBSTRING_INDEX(url, 'par1=', -1), '&', 1)) as total_unicos
             FROM ddm_ddmadv.links_ddmpay
             WHERE DATE(data_hora) BETWEEN %s AND %s
             AND url LIKE '%par1=%'
+            {filtros_links_sql}
         """
-        cursor.execute(query_total, (data_inicio, data_fim))
+        cursor.execute(query_total, params_links)
         row_total = cursor.fetchone()
         total_cliques = row_total['total']
         total_cliques_unicos = row_total['total_unicos']
         
         # QUERY 2: Cliques por canal (par2)
-        query_canais = """
+        filtros_canais = []
+        params_canais = [data_inicio, data_fim]
+        if campanha_filtro:
+            filtros_canais.append("AND (url LIKE %s OR url LIKE %s)")
+            params_canais.extend([
+                f'%par3={campanha_filtro}%',
+                f'%par3={quote_plus(campanha_filtro)}%',
+            ])
+        if canal_filtro:
+            filtros_canais.append("AND url LIKE %s")
+            params_canais.append(f'%par2={canal_filtro}%')
+        filtros_canais_sql = "\n              ".join(filtros_canais)
+
+        query_canais = f"""
             SELECT 
                 CASE 
                     WHEN url LIKE '%par2=sms%' THEN 'SMS'
@@ -618,14 +649,28 @@ def api_metricas():
             FROM ddm_ddmadv.links_ddmpay
             WHERE DATE(data_hora) BETWEEN %s AND %s
               AND url LIKE '%par1=%'
+              {filtros_canais_sql}
             GROUP BY canal
             ORDER BY cliques DESC
         """
-        cursor.execute(query_canais, (data_inicio, data_fim))
+        cursor.execute(query_canais, params_canais)
         por_canal = {row['canal']: row['cliques'] for row in cursor.fetchall()}
         
         # QUERY 3: Tendência últimos 7 dias
-        query_tendencia = """
+        filtros_tendencia = []
+        params_tendencia = []
+        if canal_filtro:
+            filtros_tendencia.append("AND url LIKE %s")
+            params_tendencia.append(f'%par2={canal_filtro}%')
+        if campanha_filtro:
+            filtros_tendencia.append("AND (url LIKE %s OR url LIKE %s)")
+            params_tendencia.extend([
+                f'%par3={campanha_filtro}%',
+                f'%par3={quote_plus(campanha_filtro)}%',
+            ])
+        filtros_tendencia_sql = "\n              ".join(filtros_tendencia)
+
+        query_tendencia = f"""
             SELECT 
                 DATE(data_hora) as data,
                 COUNT(*) as cliques,
@@ -639,10 +684,11 @@ def api_metricas():
             FROM ddm_ddmadv.links_ddmpay
             WHERE data_hora >= DATE_SUB(NOW(), INTERVAL 7 DAY)
               AND url LIKE '%par1=%'
+              {filtros_tendencia_sql}
             GROUP BY DATE(data_hora), canal
             ORDER BY data DESC
         """
-        cursor.execute(query_tendencia)
+        cursor.execute(query_tendencia, params_tendencia)
         tendencia = cursor.fetchall()
 
         # QUERY 4: Funil + pagamento via VIEW vw_ddmpay_completo
@@ -691,12 +737,23 @@ def api_metricas():
             return agg_campanha_dia.setdefault((data, campanha), novo_bucket_dia())
 
         try:
-            cursor.execute("""
+            filtros_view = []
+            params_view = [data_inicio, data_fim]
+            if canal_filtro:
+                filtros_view.append("AND LOWER(canal) = %s")
+                params_view.append(canal_filtro)
+            if campanha_filtro:
+                filtros_view.append("AND lote = %s")
+                params_view.append(campanha_filtro)
+            filtros_view_sql = "\n                  ".join(filtros_view)
+
+            cursor.execute(f"""
                 SELECT clique_id, clique_data, par1, canal, lote, nome,
                        nr_acordo, acordo_data, tem_acordo, valor_pago, pago
                 FROM ddm_ddmadv.vw_ddmpay_completo
                 WHERE DATE(clique_data) BETWEEN %s AND %s
-            """, (data_inicio, data_fim))
+                  {filtros_view_sql}
+            """, params_view)
             rows = cursor.fetchall()
 
             def novo():
@@ -799,15 +856,39 @@ def api_metricas():
         # Usa MySQL quando existir e arquivo local como fallback para cPanel sem CREATE TABLE.
         event_rows = load_funil_eventos_file(data_inicio, data_fim)
         try:
-            cursor.execute("""
+            filtros_funil = []
+            params_funil = [data_inicio, data_fim]
+            if canal_filtro:
+                filtros_funil.append("AND LOWER(par2) = %s")
+                params_funil.append(canal_filtro)
+            if campanha_filtro:
+                filtros_funil.append("AND par3 = %s")
+                params_funil.append(campanha_filtro)
+            filtros_funil_sql = "\n                  ".join(filtros_funil)
+
+            cursor.execute(f"""
                 SELECT tid, par1, par2, par3, etapa, etapa_label, pagina_url, created_at
                 FROM ddm_ddmadv.ddmpay_funil_eventos
                 WHERE DATE(created_at) BETWEEN %s AND %s
+                  {filtros_funil_sql}
                 ORDER BY created_at ASC
-            """, (data_inicio, data_fim))
+            """, params_funil)
             event_rows.extend(cursor.fetchall())
         except Exception as e:
             print(f"[FUNIL EVENTOS] usando eventos locais: {e}")
+
+        if canal_filtro or campanha_filtro:
+            event_rows = [
+                ev for ev in event_rows
+                if (
+                    not canal_filtro
+                    or (ev.get('par2') or '').strip().lower() == canal_filtro
+                )
+                and (
+                    not campanha_filtro
+                    or (ev.get('par3') or '').strip() == campanha_filtro
+                )
+            ]
 
         tracked_by_par1 = {}
         for ev in event_rows:
