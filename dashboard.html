@@ -1,1268 +1,901 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard UTM — Grupo DDM</title>
-    <meta name="description" content="Dashboard em tempo real para visualizar rastreio de disparos, acordos e pagamentos DDMPay.">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <style>
-        :root {
-            --primary-orange: #FF5A1F;
-            --primary-orange-hover: #E04812;
-            --primary-orange-light: rgba(255, 90, 31, 0.1);
-            
-            --bg-color: #F8FAFC;
-            --card-bg: rgba(255, 255, 255, 0.9);
-            --text-main: #0F172A;
-            --text-muted: #64748B;
-            --border-color: #E2E8F0;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard UTM - Grupo DDM</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --text: #172033;
+      --muted: #64748b;
+      --border: #e5eaf1;
+      --primary: #ff5428;
+      --primary-hover: #e94820;
+      --primary-soft: #fff0eb;
+      --green: #10b981;
+      --green-soft: #e8f8f2;
+      --blue: #3b82f6;
+      --blue-soft: #edf4ff;
+      --purple: #7c3aed;
+      --purple-soft: #f2edff;
+      --amber: #f59e0b;
+      --amber-soft: #fff7df;
+      --red: #ef4444;
+      --red-soft: #fff1f2;
+      --radius: 8px;
+      --shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+    }
 
-            /* Channel Colors */
-            --color-whatsapp: #10B981;
-            --color-sms: #3B82F6;
-            --color-email: #F59E0B;
-            --color-rcs: #8B5CF6;
-        }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
-        }
+    body {
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.4;
+    }
 
-        body {
-            background-color: var(--bg-color);
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(255, 90, 31, 0.05) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
-            background-attachment: fixed;
-            color: var(--text-main);
-            min-height: 100vh;
-            padding: 10px;
-        }
+    button, input, select { font: inherit; }
 
-        .container {
-            max-width: 1760px;
-            margin: 0 auto;
-        }
+    .dashboard {
+      width: 100%;
+      max-width: 1900px;
+      margin: 0 auto;
+      padding: 8px;
+    }
 
-        /* Glassmorphism utility */
-        .glass-panel {
-            background: var(--card-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-        }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px 16px;
+      margin-bottom: 8px;
+    }
 
-        /* Header */
-        .header {
-            padding: 12px 18px;
-            margin-bottom: 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+    .brand-area {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 260px;
+    }
 
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
+    .brand {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      font-size: 18px;
+      font-weight: 800;
+      padding: 9px 12px;
+      white-space: nowrap;
+    }
 
-        .logo-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: white;
-            border-radius: 10px;
-            padding: 6px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            width: 112px; /* Placeholder width for logo */
-        }
-        
-        .logo-placeholder {
-            font-weight: 800;
-            font-size: 19px;
-            color: var(--primary-orange);
-            letter-spacing: -1px;
-            display: flex;
-            align-items: center;
-        }
-        .logo-placeholder span.dark {
-            color: #111;
-            margin-right: 4px;
-        }
+    .brand span { color: var(--primary); }
 
-        .header h1 {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--text-main);
-        }
+    h1 {
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
 
-        .last-updated {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 2px;
-            display: flex;
-            align-items: center;
-        }
+    .sync-status {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
 
-        .status-online {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #10B981;
-            border-radius: 50%;
-            margin-right: 8px;
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-            animation: pulse 2s infinite;
-        }
+    .sync-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+    }
 
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
+    .filters {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
 
-        .header-right {
-            display: flex;
-            gap: 16px;
-            align-items: center;
-        }
+    .filter-control {
+      height: 38px;
+      min-width: 148px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: white;
+      color: var(--text);
+      padding: 0 12px;
+      outline: none;
+      font-weight: 600;
+      font-size: 13px;
+    }
 
-        .filter-group {
-            display: flex;
-            gap: 12px;
-        }
+    .filter-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(255, 84, 40, 0.12);
+    }
 
-        select, input {
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 14px;
-            color: var(--text-main);
-            background: white;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
+    .btn-refresh {
+      height: 38px;
+      border: 0;
+      border-radius: var(--radius);
+      padding: 0 16px;
+      background: var(--primary);
+      color: white;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    }
 
-        select:focus, input:focus {
-            outline: none;
-            border-color: var(--primary-orange);
-            box-shadow: 0 0 0 3px var(--primary-orange-light);
-        }
+    .btn-refresh:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(255, 84, 40, 0.22);
+    }
 
-        .refresh-btn {
-            padding: 8px 16px;
-            background: var(--primary-orange);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(255, 90, 31, 0.2);
-        }
+    .section { margin-bottom: 8px; }
 
-        .refresh-btn:hover {
-            background: var(--primary-orange-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 16px rgba(255, 90, 31, 0.3);
-        }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
 
-        .refresh-btn:active {
-            transform: translateY(1px);
-        }
+    .kpi-card, .card, .funnel-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
 
-        /* KPI Grid */
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 10px;
-            margin-bottom: 12px;
-        }
+    .kpi-card {
+      min-height: 112px;
+      padding: 14px;
+      overflow: hidden;
+    }
 
-        .kpi-card {
-            padding: 12px 14px;
-            min-height: 104px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
+    .kpi-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
 
-        .kpi-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 4px;
-            height: 100%;
-            background: var(--primary-orange);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
+    .kpi-label {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
 
-        .kpi-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.05);
-        }
+    .kpi-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius);
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
 
-        .kpi-card:hover::before {
-            opacity: 1;
-        }
+    .icon-blue { background: var(--blue-soft); color: var(--blue); }
+    .icon-purple { background: var(--purple-soft); color: var(--purple); }
+    .icon-green { background: var(--green-soft); color: var(--green); }
+    .icon-amber { background: var(--amber-soft); color: var(--amber); }
+    .icon-orange { background: var(--primary-soft); color: var(--primary); }
 
-        .kpi-icon {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            width: 30px;
-            height: 30px;
-            border-radius: 8px;
-            background: var(--primary-orange-light);
-            color: var(--primary-orange);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 15px;
-        }
+    .kpi-value {
+      font-size: 28px;
+      font-weight: 800;
+      margin-top: 6px;
+      letter-spacing: 0;
+    }
 
-        .kpi-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 6px;
-            padding-right: 34px;
-        }
+    .kpi-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
 
-        .kpi-value {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--text-main);
-            margin-bottom: 6px;
-            letter-spacing: 0;
-        }
+    .kpi-trend {
+      display: inline-flex;
+      align-items: center;
+      margin-top: 8px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--muted);
+      background: var(--surface-soft);
+    }
 
-        .kpi-change {
-            font-size: 11px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
+    .funnel-card { padding: 14px; }
 
-        .change-positive {
-            color: #10B981;
-            background: rgba(16, 185, 129, 0.1);
-            padding: 2px 8px;
-            border-radius: 12px;
-        }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
 
-        .change-neutral {
-            color: var(--text-muted);
-        }
+    .section-title {
+      font-size: 15px;
+      font-weight: 800;
+    }
 
-        /* Charts Grid */
-        .charts-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 10px;
-            margin-bottom: 12px;
-        }
+    .section-subtitle {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
 
-        .chart-container {
-            padding: 12px;
-        }
+    .funnel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr) 52px minmax(0, 1fr) 52px minmax(0, 1fr);
+      align-items: stretch;
+    }
 
-        .chart-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-main);
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+    .funnel-step {
+      border: 1px solid var(--border);
+      background: var(--surface-soft);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
 
-        .chart-wrapper {
-            position: relative;
-            height: 160px;
-            width: 100%;
-        }
+    .funnel-step.active {
+      background: var(--primary-soft);
+      border-color: #ffd1c5;
+    }
 
-        /* Table Section */
-        .table-container {
-            padding: 12px;
-            overflow: auto;
-            max-height: 340px;
-        }
+    .step-index {
+      width: 24px;
+      height: 24px;
+      display: grid;
+      place-items: center;
+      border-radius: 6px;
+      background: white;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
 
-        .table-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
+    .step-name {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
 
-        .table-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-main);
-        }
+    .step-value {
+      font-size: 26px;
+      font-weight: 800;
+      margin-top: 2px;
+      letter-spacing: 0;
+    }
 
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-        }
+    .step-rate {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 5px;
+    }
 
-        th {
-            text-align: left;
-            padding: 8px 10px;
-            font-weight: 600;
-            color: var(--text-muted);
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(248, 250, 252, 0.5);
-        }
+    .funnel-arrow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #9aa7ba;
+      text-align: center;
+      gap: 4px;
+      font-size: 18px;
+    }
 
-        th:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-        th:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+    .funnel-arrow strong {
+      color: var(--text);
+      font-size: 11px;
+    }
 
-        td {
-            padding: 8px 10px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 12px;
-            color: var(--text-main);
-            font-weight: 500;
-        }
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 8px;
+    }
 
-        tbody tr {
-            transition: background 0.2s ease;
-        }
+    .card {
+      padding: 14px;
+      overflow: hidden;
+    }
 
-        tbody tr:hover {
-            background: rgba(248, 250, 252, 0.8);
-        }
+    .chart-container {
+      height: 220px;
+      position: relative;
+    }
 
-        tbody tr:last-child td {
-            border-bottom: none;
-        }
+    .channel-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
 
-        /* Badges */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.3px;
-        }
+    .channel-row {
+      display: grid;
+      grid-template-columns: 96px 1fr 64px;
+      align-items: center;
+      gap: 10px;
+    }
 
-        .badge-pago {
-            background: rgba(16, 185, 129, 0.1);
-            color: #059669;
-            border: 1px solid rgba(16, 185, 129, 0.2);
-        }
+    .channel-name {
+      font-size: 12px;
+      font-weight: 800;
+    }
 
-        .badge-pendente {
-            background: rgba(245, 158, 11, 0.1);
-            color: #D97706;
-            border: 1px solid rgba(245, 158, 11, 0.2);
-        }
+    .progress {
+      height: 8px;
+      background: #eef1f5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
 
-        .badge-cancelado {
-            background: rgba(239, 68, 68, 0.1);
-            color: #DC2626;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
+    .progress-bar {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+    }
 
-        .badge-canal {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
+    .channel-value {
+      text-align: right;
+      font-weight: 800;
+      font-size: 12px;
+    }
 
-        .badge-canal::before {
-            content: '';
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
+    .table-card { padding: 14px; }
 
-        .canal-whatsapp::before { background: var(--color-whatsapp); }
-        .canal-sms::before { background: var(--color-sms); }
-        .canal-email::before { background: var(--color-email); }
-        .canal-rcs::before { background: var(--color-rcs); }
+    .table-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
 
-        .btn-delete-row {
-            border: 1px solid rgba(220, 38, 38, 0.25);
-            background: rgba(239, 68, 68, 0.08);
-            color: #DC2626;
-            border-radius: 8px;
-            padding: 6px 10px;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-        }
+    .search-input {
+      width: 230px;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      outline: none;
+      font-size: 13px;
+    }
 
-        .btn-delete-row:hover {
-            background: rgba(239, 68, 68, 0.14);
-        }
+    .table-wrapper {
+      overflow: auto;
+      max-height: 330px;
+    }
 
-        /* Loading */
-        .loading-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-            color: var(--text-muted);
-        }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 920px;
+    }
 
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(255, 90, 31, 0.1);
-            border-top: 3px solid var(--primary-orange);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 16px;
-        }
+    thead {
+      background: var(--surface-soft);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      font-size: 12px;
+      white-space: nowrap;
+    }
 
-        @media (min-width: 1280px) {
-            .kpi-grid {
-                grid-template-columns: repeat(7, minmax(0, 1fr));
-            }
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 800;
+    }
 
-            .charts-grid {
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-            }
-        }
+    td { font-weight: 600; }
+    tr:last-child td { border-bottom: 0; }
 
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 20px;
-            }
-            .header-right {
-                width: 100%;
-                flex-wrap: wrap;
-            }
-        }
+    .campaign-name { font-weight: 800; }
 
-        @media (max-width: 768px) {
-            .filter-group {
-                flex-direction: column;
-                width: 100%;
-            }
-            .filter-group select, .filter-group input {
-                width: 100%;
-            }
-            .charts-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .badge-green { background: var(--green-soft); color: #087a56; }
+    .badge-gray { background: #edf0f4; color: #64748b; }
+    .badge-orange { background: var(--primary-soft); color: #d63e18; }
+
+    .action-btn {
+      border: 1px solid #fecaca;
+      background: var(--red-soft);
+      color: var(--red);
+      border-radius: var(--radius);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .empty-state {
+      padding: 34px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    @media (max-width: 1300px) {
+      .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+      .funnel { grid-template-columns: 1fr; gap: 8px; }
+      .funnel-arrow { flex-direction: row; min-height: 28px; }
+      .funnel-arrow span { transform: rotate(90deg); }
+    }
+
+    @media (max-width: 980px) {
+      .topbar { flex-direction: column; align-items: stretch; }
+      .filters { justify-content: stretch; }
+      .filter-control, .btn-refresh { flex: 1; }
+      .analytics-grid, .details-grid { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 620px) {
+      .dashboard { padding: 6px; }
+      .brand-area { min-width: 0; }
+      .brand { display: none; }
+      .filters { flex-direction: column; }
+      .filter-control, .btn-refresh { width: 100%; }
+      .kpi-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header glass-panel">
-            <div class="header-left">
-                <div class="logo-container">
-                    <div class="logo-placeholder">
-                        <span class="dark">GRUPO</span> DDM
-                    </div>
-                </div>
-                <div>
-                    <h1>Dashboard UTM</h1>
-                    <div class="last-updated">
-                        <span class="status-online"></span>
-                        <span id="last-updated">Conectando...</span>
-                    </div>
-                </div>
-            </div>
-            <div class="header-right">
-                <div class="filter-group">
-                    <select id="canal-filter">
-                        <option value="">Todos os Canais</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="sms">SMS</option>
-                        <option value="email">E-mail</option>
-                        <option value="rcs">RCS</option>
-                    </select>
-                    <select id="campanha-filter">
-                        <option value="">Todas as Campanhas</option>
-                    </select>
-                    <input type="date" id="data-inicio" title="Data Inicial">
-                    <input type="date" id="data-fim" title="Data Final">
-                </div>
-                <button class="refresh-btn" onclick="carregarDados()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-10.31l5.3 5.31"/></svg>
-                    Atualizar
-                </button>
-            </div>
-        </header>
-
-        <!-- KPI Cards -->
-        <div class="kpi-grid">
-            <div class="kpi-card glass-panel">
-                <div class="kpi-icon">👤</div>
-                <div class="kpi-label">Clientes Únicos</div>
-                <div class="kpi-value" id="total-disparos">0</div>
-                <div class="kpi-change">
-                    <span class="change-neutral" id="change-disparos">Clientes distintos que clicaram</span>
-                </div>
-            </div>
-
-            <div class="kpi-card glass-panel">
-                <div class="kpi-icon">🖱️</div>
-                <div class="kpi-label">Cliques no Link</div>
-                <div class="kpi-value" id="total-cliques">0</div>
-                <div class="kpi-change">
-                    <span class="change-neutral" id="change-cliques">Total de cliques no período</span>
-                </div>
-            </div>
-
-            <div class="kpi-card glass-panel">
-                <div class="kpi-icon">CPF</div>
-                <div class="kpi-label">Entraram no DDMPay</div>
-                <div class="kpi-value" id="total-entraram-ddmpay">0</div>
-                <div class="kpi-change">
-                    <span class="change-neutral" id="change-entraram-ddmpay">CPF pesquisado no DDMPay</span>
-                </div>
-            </div>
-
-            <div class="kpi-card glass-panel">
-                <div class="kpi-icon">🤝</div>
-                <div class="kpi-label">Acordos Gerados</div>
-                <div class="kpi-value" id="total-acordos">0</div>
-                <div class="kpi-change">
-                    <span class="change-positive" id="change-acordos">0</span>
-                    <span class="change-neutral">novos acordos hoje</span>
-                </div>
-            </div>
-
-            <div class="kpi-card glass-panel">
-                <div class="kpi-icon">💳</div>
-                <div class="kpi-label">Pagamentos DDMPay</div>
-                <div class="kpi-value" id="valor-ddmpay">R$ 0,00</div>
-                <div class="kpi-change">
-                    <span class="change-neutral" id="change-valor">Aguardando pagamentos</span>
-                </div>
-            </div>
-
-            <div class="kpi-card glass-panel">
-                <div class="kpi-icon">📈</div>
-                <div class="kpi-label">Taxa de Acordos</div>
-                <div class="kpi-value" id="taxa-conversao">0%</div>
-                <div class="kpi-change">
-                    <span class="change-neutral" id="change-taxa">Baseado em cliques no link</span>
-                </div>
-            </div>
-
-            <div class="kpi-card glass-panel">
-                <div class="kpi-icon">💰</div>
-                <div class="kpi-label">Ticket Médio (DDMPay)</div>
-                <div class="kpi-value" id="ticket-medio">R$ 0,00</div>
-                <div class="kpi-change">
-                    <span class="change-neutral">Média por acordo pago</span>
-                </div>
-            </div>
+  <div class="dashboard">
+    <header class="topbar">
+      <div class="brand-area">
+        <div class="brand">GRUPO <span>DDM</span></div>
+        <div>
+          <h1>Dashboard UTM</h1>
+          <div class="sync-status">
+            <span class="sync-dot"></span>
+            <span id="last-updated">Conectando...</span>
+          </div>
         </div>
+      </div>
 
-        <!-- Charts -->
-        <div class="charts-grid">
-            <div class="chart-container glass-panel">
-                <h3 class="chart-title">📊 Cliques vs Acordos (Últimos 7 dias)</h3>
-                <div class="chart-wrapper">
-                    <canvas id="chartTendencia"></canvas>
-                </div>
-            </div>
+      <div class="filters">
+        <select id="canal-filter" class="filter-control">
+          <option value="">Todos os canais</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="sms">SMS</option>
+          <option value="email">E-mail</option>
+          <option value="rcs">RCS</option>
+        </select>
+        <select id="campanha-filter" class="filter-control">
+          <option value="">Todas as campanhas</option>
+        </select>
+        <input type="date" id="data-inicio" class="filter-control" title="Data inicial">
+        <input type="date" id="data-fim" class="filter-control" title="Data final">
+        <button type="button" class="btn-refresh" id="refreshDashboard">Atualizar</button>
+      </div>
+    </header>
 
-            <div class="chart-container glass-panel">
-                <h3 class="chart-title">📱 Origem dos Acordos (Por Canal)</h3>
-                <div class="chart-wrapper">
-                    <canvas id="chartAcordosCanal"></canvas>
-                </div>
-            </div>
-
-            <div class="chart-container glass-panel">
-                <h3 class="chart-title">💸 Volume DDMPay por Canal</h3>
-                <div class="chart-wrapper">
-                    <canvas id="chartVolumeCanal"></canvas>
-                </div>
-            </div>
-
-            <div class="chart-container glass-panel">
-                <h3 class="chart-title">🎯 Funil de Conversão Médio</h3>
-                <div class="chart-wrapper">
-                    <canvas id="chartFunil"></canvas>
-                </div>
-            </div>
+    <section class="section">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-top"><span class="kpi-label">Clientes unicos</span><span class="kpi-icon icon-purple">U</span></div>
+          <div class="kpi-value" id="kpiUsers">0</div>
+          <div class="kpi-sub">Usuarios que clicaram no periodo</div>
+          <span class="kpi-trend" id="kpiClicksSub">0 cliques totais</span>
         </div>
-
-        <!-- Table -->
-        <div class="table-container glass-panel">
-            <div class="table-header">
-                <h3 class="table-title">🔝 Últimos Acordos Registrados</h3>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Data/Hora</th>
-                        <th>ID Aluno/Cliente</th>
-                        <th>Origem (UTM)</th>
-                        <th>Campanha</th>
-                        <th>Valor (R$)</th>
-                        <th>Status DDMPay</th>
-                    </tr>
-                </thead>
-                <tbody id="tabela-acordos">
-                    <tr>
-                        <td colspan="6">
-                            <div class="loading-container">
-                                <div class="spinner"></div>
-                                <span>Buscando rastreios...</span>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="kpi-card">
+          <div class="kpi-top"><span class="kpi-label">Entraram no DDMPay</span><span class="kpi-icon icon-blue">CPF</span></div>
+          <div class="kpi-value" id="kpiCpf">0</div>
+          <div class="kpi-sub">CPFs pesquisados no DDMPay</div>
+          <span class="kpi-trend" id="cpfRate">0% dos usuarios</span>
         </div>
-
-        <!-- Quebra por Campanha -->
-        <div class="table-container glass-panel" style="margin-top:16px;">
-            <div class="table-header">
-                <h3 class="table-title">🎯 Desempenho por Campanha (par3)</h3>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Campanha</th>
-                        <th>Cliques</th>
-                        <th>Usuários Únicos</th>
-                        <th>Entraram DDMPay</th>
-                        <th>Com Acordo</th>
-                        <th>Pagaram</th>
-                        <th>Valor Pago (R$)</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="tabela-campanha">
-                    <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
-                </tbody>
-            </table>
+        <div class="kpi-card">
+          <div class="kpi-top"><span class="kpi-label">Acordos fechados</span><span class="kpi-icon icon-green">A</span></div>
+          <div class="kpi-value" id="kpiAgreements">0</div>
+          <div class="kpi-sub">Acordos gerados no periodo</div>
+          <span class="kpi-trend" id="agreementRate">0% de conversao</span>
         </div>
-
-        <!-- Quebra por Campanha e Dia -->
-        <div class="table-container glass-panel" style="margin-top:16px;">
-            <div class="table-header">
-                <h3 class="table-title">Desempenho por campanha e dia</h3>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Data</th>
-                        <th>Campanha</th>
-                        <th>Cliques</th>
-                        <th>Usuarios unicos</th>
-                        <th>Entraram DDMPay</th>
-                        <th>Com Acordo</th>
-                        <th>Pagaram</th>
-                        <th>Valor Pago (R$)</th>
-                    </tr>
-                </thead>
-                <tbody id="tabela-campanha-dia">
-                    <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
-                </tbody>
-            </table>
+        <div class="kpi-card">
+          <div class="kpi-top"><span class="kpi-label">Pagamentos</span><span class="kpi-icon icon-orange">R$</span></div>
+          <div class="kpi-value" id="kpiPayments">0</div>
+          <div class="kpi-sub">Acordos pagos</div>
+          <span class="kpi-trend" id="paymentRevenue">R$ 0,00 recebido</span>
         </div>
-
-        <!-- Funil detalhado por campanha -->
-        <div class="table-container glass-panel" style="margin-top:16px;">
-            <div class="table-header">
-                <h3 class="table-title">Funil detalhado por campanha</h3>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Campanha</th>
-                        <th>Clicou</th>
-                        <th>Tela CPF</th>
-                        <th>CPF informado</th>
-                        <th>Pagamento</th>
-                        <th>Iniciou Pgto.</th>
-                        <th>Pagou</th>
-                        <th>Maior abandono</th>
-                    </tr>
-                </thead>
-                <tbody id="tabela-funil-campanha">
-                    <tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Aguardando eventos do DDMPay...</td></tr>
-                </tbody>
-            </table>
+        <div class="kpi-card">
+          <div class="kpi-top"><span class="kpi-label">Ticket medio</span><span class="kpi-icon icon-amber">T</span></div>
+          <div class="kpi-value" id="kpiTicket">R$ 0,00</div>
+          <div class="kpi-sub">Valor medio por pagamento</div>
+          <span class="kpi-trend" id="ticketBase">Baseado nos pagamentos</span>
         </div>
+      </div>
+    </section>
 
-        <!-- Quebra por Canal -->
-        <div class="table-container glass-panel" style="margin-top:16px;">
-            <div class="table-header">
-                <h3 class="table-title">📱 Desempenho por Canal (par2)</h3>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Canal</th>
-                        <th>Cliques</th>
-                        <th>Usuários Únicos</th>
-                        <th>Entraram DDMPay</th>
-                        <th>Com Acordo</th>
-                        <th>Pagaram</th>
-                        <th>Valor Pago (R$)</th>
-                    </tr>
-                </thead>
-                <tbody id="tabela-canal">
-                    <tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">Carregando...</td></tr>
-                </tbody>
-            </table>
+    <section class="section">
+      <div class="funnel-card">
+        <div class="section-header">
+          <div>
+            <div class="section-title">Funil de conversao</div>
+            <div class="section-subtitle">Fluxo consolidado do periodo selecionado</div>
+          </div>
         </div>
-    </div>
+        <div class="funnel">
+          <div class="funnel-step"><div class="step-index">01</div><div class="step-name">Cliques</div><div class="step-value" id="funnelClicks">0</div><div class="step-rate">100% da entrada</div></div>
+          <div class="funnel-arrow"><strong id="clickCpfRate">0%</strong><span>&rarr;</span></div>
+          <div class="funnel-step active"><div class="step-index">02</div><div class="step-name">CPF pesquisado</div><div class="step-value" id="funnelCpf">0</div><div class="step-rate" id="clickCpfDrop">0% abandonaram</div></div>
+          <div class="funnel-arrow"><strong id="cpfAgreementRate">0%</strong><span>&rarr;</span></div>
+          <div class="funnel-step"><div class="step-index">03</div><div class="step-name">Acordo</div><div class="step-value" id="funnelAgreement">0</div><div class="step-rate">Acordos gerados</div></div>
+          <div class="funnel-arrow"><strong id="agreementPaymentRate">0%</strong><span>&rarr;</span></div>
+          <div class="funnel-step"><div class="step-index">04</div><div class="step-name">Pagamento</div><div class="step-value" id="funnelPayment">0</div><div class="step-rate">Pagamentos concluidos</div></div>
+        </div>
+      </div>
+    </section>
 
-    <script>
-        // Configurações Globais Chart.js
-        Chart.defaults.font.family = "'Inter', sans-serif";
-        Chart.defaults.color = '#64748B';
-        Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(15, 23, 42, 0.9)';
-        Chart.defaults.plugins.tooltip.padding = 12;
-        Chart.defaults.plugins.tooltip.cornerRadius = 8;
+    <section class="section analytics-grid">
+      <div class="card">
+        <div class="section-header"><div><div class="section-title">Evolucao de conversao</div><div class="section-subtitle">Cliques e entrada no DDMPay por dia</div></div></div>
+        <div class="chart-container"><canvas id="conversionChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="section-header"><div><div class="section-title">Desempenho por canal</div><div class="section-subtitle">Participacao dos canais nos cliques</div></div></div>
+        <div class="channel-list" id="channelList"></div>
+      </div>
+    </section>
 
-        const PALETA_CANAIS = {
-            whatsapp: '#10B981', // Verde
-            sms: '#3B82F6',      // Azul
-            email: '#F59E0B',    // Amarelo/Laranja
-            rcs: '#8B5CF6'       // Roxo
-        };
+    <section class="section">
+      <div class="card table-card">
+        <div class="section-header">
+          <div><div class="section-title">Desempenho das campanhas</div><div class="section-subtitle">Resultados por campanha e maior ponto de abandono</div></div>
+          <div class="table-tools"><input type="search" id="campaignSearch" class="search-input" placeholder="Buscar campanha"></div>
+        </div>
+        <div class="table-wrapper">
+          <table id="campaignTable">
+            <thead><tr><th>Campanha</th><th>Cliques</th><th>Usuarios</th><th>CPF</th><th>Acordos</th><th>Pagaram</th><th>Conversao</th><th>Valor pago</th><th>Maior abandono</th><th>Acoes</th></tr></thead>
+            <tbody id="tabela-campanha"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
-        const COR_PRIMARIA = '#FF5A1F'; // Laranja DDM
+    <section class="section details-grid">
+      <div class="card table-card">
+        <div class="section-header"><div><div class="section-title">Campanha por dia</div><div class="section-subtitle">Leitura diaria por campanha selecionada</div></div></div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Data</th><th>Campanha</th><th>Cliques</th><th>Usuarios</th><th>CPF</th><th>Acordos</th><th>Pagaram</th><th>Valor</th></tr></thead>
+            <tbody id="tabela-campanha-dia"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card table-card">
+        <div class="section-header"><div><div class="section-title">Ultimos acordos</div><div class="section-subtitle">Registros vinculados aos cliques rastreados</div></div></div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Data</th><th>Aluno</th><th>Canal</th><th>Campanha</th><th>Valor</th><th>Status</th></tr></thead>
+            <tbody id="tabela-acordos"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
 
-        let chartTendencia, chartAcordosCanal, chartVolumeCanal, chartFunil;
+  <script>
+    const CANAIS = [
+      { key: 'SMS', label: 'SMS', color: '#3b82f6' },
+      { key: 'WhatsApp', label: 'WhatsApp', color: '#10b981' },
+      { key: 'E-mail', label: 'E-mail', color: '#f59e0b' },
+      { key: 'RCS', label: 'RCS', color: '#7c3aed' }
+    ];
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const hoje = new Date();
-            const trinta_dias_atras = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000);
-            
-            document.getElementById('data-inicio').valueAsDate = trinta_dias_atras;
-            document.getElementById('data-fim').valueAsDate = hoje;
+    let conversionChart = null;
+    let loading = false;
 
-            ['canal-filter', 'campanha-filter', 'data-inicio', 'data-fim'].forEach(id => {
-                document.getElementById(id).addEventListener('change', carregarDados);
-            });
+    document.addEventListener('DOMContentLoaded', () => {
+      const hoje = new Date();
+      const trintaDiasAtras = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000);
+      document.getElementById('data-inicio').valueAsDate = trintaDiasAtras;
+      document.getElementById('data-fim').valueAsDate = hoje;
 
-            carregarDados();
-            setInterval(carregarDados, 30000);
-        });
+      ['canal-filter', 'campanha-filter', 'data-inicio', 'data-fim'].forEach(id => {
+        document.getElementById(id).addEventListener('change', carregarDados);
+      });
+      document.getElementById('refreshDashboard').addEventListener('click', carregarDados);
+      document.getElementById('campaignSearch').addEventListener('input', filtrarTabelaCampanhas);
 
-        async function carregarDados() {
-            try {
-                const btnAtualizar = document.querySelector('.refresh-btn');
-                btnAtualizar.style.opacity = '0.7';
-                document.getElementById('last-updated').textContent = 'Sincronizando...';
+      carregarDados();
+      setInterval(carregarDados, 30000);
+    });
 
-                // Carregar dados REAIS do banco via API
-                const dados = await carregarMetricasReais();
+    function percentage(value, total) {
+      return total ? (Number(value || 0) / Number(total || 0)) * 100 : 0;
+    }
 
-                atualizarFiltroCampanhas(dados.por_campanha || {});
-                atualizarKPIs(dados);
-                atualizarGraficos(dados);
-                atualizarTabela(dados);
-                atualizarQuebras(dados);
-                renderCampanhaDia(dados.por_campanha_dia || []);
+    function formatPercent(value) {
+      return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(value) + '%';
+    }
 
-                document.getElementById('last-updated').innerHTML = `Sincronizado às ${new Date().toLocaleTimeString('pt-BR')}`;
-                btnAtualizar.style.opacity = '1';
-            } catch (erro) {
-                console.error('Erro ao carregar dados:', erro);
-                document.getElementById('last-updated').textContent = '⚠️ Falha na conexão';
-            }
+    function formatMoney(value) {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+    }
+
+    function formatInt(value) {
+      return Number(value || 0).toLocaleString('pt-BR');
+    }
+
+    function escapeHtml(valor) {
+      return String(valor ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    async function carregarDados() {
+      if (loading) return;
+      loading = true;
+      const button = document.getElementById('refreshDashboard');
+      button.disabled = true;
+      button.textContent = 'Atualizando...';
+      document.getElementById('last-updated').textContent = 'Sincronizando...';
+
+      try {
+        const dados = await carregarMetricasReais();
+        atualizarFiltroCampanhas(dados.por_campanha || {});
+        updateDashboard(dados);
+        renderConversionChart(dados);
+        renderChannels(dados.por_canal_detalhe || {});
+        renderCampanhas(dados.por_campanha || {}, dados.abandono_por_campanha || {});
+        renderCampanhaDia(dados.por_campanha_dia || []);
+        renderAcordos(dados.acordos || []);
+        document.getElementById('last-updated').textContent = `Sincronizado as ${new Date().toLocaleTimeString('pt-BR')}`;
+      } catch (erro) {
+        console.error('Erro ao carregar dados:', erro);
+        document.getElementById('last-updated').textContent = 'Falha na conexao';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Atualizar';
+        loading = false;
+      }
+    }
+
+    async function carregarMetricasReais() {
+      const params = new URLSearchParams({
+        data_inicio: document.getElementById('data-inicio').value,
+        data_fim: document.getElementById('data-fim').value
+      });
+      const canal = document.getElementById('canal-filter').value;
+      const campanha = document.getElementById('campanha-filter').value;
+      if (canal) params.set('canal', canal);
+      if (campanha) params.set('campanha', campanha);
+
+      const response = await fetch(`/api/metricas?${params.toString()}`);
+      if (!response.ok) throw new Error(`Erro na API: ${response.status}`);
+      const apiData = await response.json();
+      const m = apiData.metricas || {};
+
+      return {
+        resumo: {
+          usuarios: m.total_cliques_unicos || 0,
+          cliques: m.total_cliques || 0,
+          cpf: m.total_entraram_ddmpay || 0,
+          acordos: m.total_acordos || 0,
+          pagaram: m.total_pagaram || 0,
+          receita: m.valor_total || 0,
+          ticket: m.ticket_medio || 0
+        },
+        por_canal_detalhe: m.por_canal_detalhe || {},
+        por_campanha: m.por_campanha || {},
+        por_campanha_dia: m.por_campanha_dia || [],
+        abandono_por_campanha: m.abandono_por_campanha || {},
+        acordos: m.acordos || []
+      };
+    }
+
+    function atualizarFiltroCampanhas(mapaCampanhas) {
+      const select = document.getElementById('campanha-filter');
+      const selecionada = select.value;
+      const nomes = new Set();
+      Array.from(select.options).forEach(option => {
+        if (option.value) nomes.add(option.value);
+      });
+      Object.keys(mapaCampanhas || {}).forEach(nome => nomes.add(nome));
+
+      const ordenadas = Array.from(nomes).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      select.innerHTML = '<option value="">Todas as campanhas</option>' + ordenadas.map(nome => {
+        const selected = nome === selecionada ? ' selected' : '';
+        return `<option value="${escapeHtml(nome)}"${selected}>${escapeHtml(nome)}</option>`;
+      }).join('');
+    }
+
+    function updateDashboard(dados) {
+      const data = dados.resumo;
+      const cpfRate = percentage(data.cpf, data.usuarios);
+      const agreementRate = percentage(data.acordos, data.cpf);
+      const paymentRate = percentage(data.pagaram, data.acordos);
+      const clickCpfRate = percentage(data.cpf, data.cliques);
+      const clickCpfDrop = Math.max(0, 100 - clickCpfRate);
+
+      document.getElementById('kpiUsers').textContent = formatInt(data.usuarios);
+      document.getElementById('kpiCpf').textContent = formatInt(data.cpf);
+      document.getElementById('kpiAgreements').textContent = formatInt(data.acordos);
+      document.getElementById('kpiPayments').textContent = formatInt(data.pagaram);
+      document.getElementById('kpiTicket').textContent = formatMoney(data.ticket);
+      document.getElementById('kpiClicksSub').textContent = `${formatInt(data.cliques)} cliques totais`;
+      document.getElementById('cpfRate').textContent = `${formatPercent(cpfRate)} dos usuarios`;
+      document.getElementById('agreementRate').textContent = `${formatPercent(agreementRate)} de conversao`;
+      document.getElementById('paymentRevenue').textContent = `${formatMoney(data.receita)} recebido`;
+      document.getElementById('ticketBase').textContent = data.pagaram ? `Baseado em ${formatInt(data.pagaram)} pagamentos` : 'Sem pagamento no periodo';
+      document.getElementById('funnelClicks').textContent = formatInt(data.cliques);
+      document.getElementById('funnelCpf').textContent = formatInt(data.cpf);
+      document.getElementById('funnelAgreement').textContent = formatInt(data.acordos);
+      document.getElementById('funnelPayment').textContent = formatInt(data.pagaram);
+      document.getElementById('clickCpfRate').textContent = formatPercent(clickCpfRate);
+      document.getElementById('clickCpfDrop').textContent = `${formatPercent(clickCpfDrop)} abandonaram`;
+      document.getElementById('cpfAgreementRate').textContent = formatPercent(agreementRate);
+      document.getElementById('agreementPaymentRate').textContent = formatPercent(paymentRate);
+    }
+
+    function renderConversionChart(dados) {
+      const porDia = {};
+      (dados.por_campanha_dia || []).forEach(item => {
+        if (!porDia[item.data]) porDia[item.data] = { cliques: 0, cpf: 0 };
+        porDia[item.data].cliques += Number(item.cliques || 0);
+        porDia[item.data].cpf += Number(item.entraram_ddmpay || 0);
+      });
+
+      const datas = Object.keys(porDia).sort();
+      const labels = datas.map(data => new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }));
+      if (conversionChart) conversionChart.destroy();
+
+      conversionChart = new Chart(document.getElementById('conversionChart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Cliques', data: datas.map(data => porDia[data].cliques), borderColor: '#94a3b8', backgroundColor: 'rgba(148, 163, 184, 0.1)', borderWidth: 2, tension: 0.35, fill: true },
+            { label: 'Entraram no DDMPay', data: datas.map(data => porDia[data].cpf), borderColor: '#ff5428', backgroundColor: 'rgba(255, 84, 40, 0.06)', borderWidth: 2, tension: 0.35 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { intersect: false, mode: 'index' },
+          plugins: { legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8, padding: 14 } }, tooltip: { padding: 10, cornerRadius: 8 } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b' } },
+            y: { beginAtZero: true, ticks: { precision: 0, color: '#64748b' }, grid: { color: '#edf0f4', borderDash: [4, 4] } }
+          }
         }
+      });
+    }
 
-        function atualizarFiltroCampanhas(mapaCampanhas) {
-            const select = document.getElementById('campanha-filter');
-            const selecionada = select.value;
-            const nomes = new Set();
+    function renderChannels(mapa) {
+      const total = Object.values(mapa).reduce((sum, item) => sum + Number(item.cliques || 0), 0);
+      document.getElementById('channelList').innerHTML = CANAIS.map(canal => {
+        const item = mapa[canal.key] || {};
+        const cliques = Number(item.cliques || 0);
+        const width = total ? Math.round((cliques / total) * 100) : 0;
+        return `<div class="channel-row"><div class="channel-name">${canal.label}</div><div class="progress"><div class="progress-bar" style="width:${width}%;background:${canal.color}"></div></div><div class="channel-value">${formatInt(cliques)}</div></div>`;
+      }).join('');
+    }
 
-            Array.from(select.options).forEach(option => {
-                if (option.value) nomes.add(option.value);
-            });
-            Object.keys(mapaCampanhas || {}).forEach(nome => nomes.add(nome));
+    function renderCampanhas(mapa, abandonos) {
+      const tbody = document.getElementById('tabela-campanha');
+      const linhas = Object.entries(mapa || {});
+      if (!linhas.length) {
+        tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state">Nenhuma campanha no periodo</div></td></tr>';
+        return;
+      }
 
-            const ordenadas = Array.from(nomes).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-            select.innerHTML = '<option value="">Todas as Campanhas</option>' + ordenadas.map(nome => {
-                const selected = nome === selecionada ? ' selected' : '';
-                return `<option value="${escapeHtml(nome)}"${selected}>${escapeHtml(nome)}</option>`;
-            }).join('');
+      linhas.sort((a, b) => (b[1].valor_pago - a[1].valor_pago) || (b[1].cliques - a[1].cliques));
+      tbody.innerHTML = linhas.map(([nome, d]) => {
+        const conversao = percentage(d.com_acordo || 0, d.usuarios || 0);
+        const abandono = maiorAbandono(abandonos[nome] || {});
+        const badgeClass = conversao > 0 ? 'badge-green' : 'badge-gray';
+        return `<tr><td class="campaign-name">${escapeHtml(nome)}</td><td>${formatInt(d.cliques)}</td><td>${formatInt(d.usuarios)}</td><td>${formatInt(d.entraram_ddmpay)}</td><td>${formatInt(d.com_acordo)}</td><td>${formatInt(d.pagaram)}</td><td><span class="badge ${badgeClass}">${formatPercent(conversao)}</span></td><td><strong>${formatMoney(d.valor_pago)}</strong></td><td><span class="badge badge-orange">${escapeHtml(abandono)}</span></td><td><button type="button" class="action-btn" data-campanha="${encodeURIComponent(nome)}">Excluir</button></td></tr>`;
+      }).join('');
 
-            if (selecionada && !ordenadas.includes(selecionada)) {
-                const option = document.createElement('option');
-                option.value = selecionada;
-                option.textContent = selecionada;
-                option.selected = true;
-                select.appendChild(option);
-            }
-        }
+      tbody.querySelectorAll('.action-btn').forEach(btn => {
+        btn.addEventListener('click', () => excluirCampanha(decodeURIComponent(btn.dataset.campanha)));
+      });
+      filtrarTabelaCampanhas();
+    }
 
-        function escapeHtml(valor) {
-            return String(valor ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
+    function maiorAbandono(abandonos) {
+      const itens = Object.values(abandonos || {});
+      if (!itens.length) return 'Sem dados';
+      itens.sort((a, b) => (b.clientes || 0) - (a.clientes || 0));
+      return itens[0].etapa_label || 'Etapa';
+    }
 
-        function atualizarKPIs(dados) {
-            const { disparos, cliques, entraram_ddmpay, acordos, pagaram, valor_ddmpay, ticket_medio } = dados.resumo;
+    function renderCampanhaDia(linhas) {
+      const tbody = document.getElementById('tabela-campanha-dia');
+      if (!linhas || !linhas.length) {
+        tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state">Nenhuma campanha por dia no periodo</div></td></tr>';
+        return;
+      }
 
-            // Taxa de acordos = usuarios com acordo / usuarios unicos que clicaram (funil real)
-            const taxa = disparos > 0 ? ((acordos / disparos) * 100).toFixed(1) : 0;
+      tbody.innerHTML = linhas.map(d => {
+        const dataFormatada = new Date(`${d.data}T00:00:00`).toLocaleDateString('pt-BR');
+        return `<tr><td>${dataFormatada}</td><td class="campaign-name">${escapeHtml(d.campanha || '(sem campanha)')}</td><td>${formatInt(d.cliques)}</td><td>${formatInt(d.usuarios)}</td><td>${formatInt(d.entraram_ddmpay)}</td><td>${formatInt(d.com_acordo)}</td><td>${formatInt(d.pagaram)}</td><td><strong>${formatMoney(d.valor_pago)}</strong></td></tr>`;
+      }).join('');
+    }
 
-            animarValor('total-disparos', disparos);
-            animarValor('total-cliques', cliques);
-            animarValor('total-entraram-ddmpay', entraram_ddmpay || 0);
-            animarValor('total-acordos', acordos);
+    function renderAcordos(acordos) {
+      const tbody = document.getElementById('tabela-acordos');
+      if (!acordos || !acordos.length) {
+        tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state">Nenhum acordo registrado neste periodo</div></td></tr>';
+        return;
+      }
 
-            document.getElementById('valor-ddmpay').textContent = valor_ddmpay > 0
-                ? `R$ ${valor_ddmpay.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
-                : 'R$ 0,00';
-            document.getElementById('taxa-conversao').textContent = disparos > 0 ? `${taxa}%` : '0%';
-            document.getElementById('ticket-medio').textContent = ticket_medio > 0
-                ? `R$ ${ticket_medio.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`
-                : 'R$ 0,00';
+      tbody.innerHTML = acordos.map(a => {
+        const data = a.data ? new Date(a.data) : null;
+        const statusClass = a.status === 'pago' ? 'badge-green' : 'badge-gray';
+        const statusText = a.status === 'pago' ? 'Pago' : 'Pendente';
+        return `<tr><td>${data && !isNaN(data) ? data.toLocaleDateString('pt-BR') : '-'}</td><td>${escapeHtml(a.aluno_id || '')}</td><td>${escapeHtml((a.canal || '').toUpperCase())}</td><td>${escapeHtml(a.campanha || '')}</td><td><strong>${formatMoney(a.valor)}</strong></td><td><span class="badge ${statusClass}">${statusText}</span></td></tr>`;
+      }).join('');
+    }
 
-            document.getElementById('change-cliques').textContent = `Total de cliques no período`;
-            document.getElementById('change-entraram-ddmpay').textContent = entraram_ddmpay > 0
-                ? `${entraram_ddmpay} CPFs pesquisados no DDMPay`
-                : 'Sem CPF pesquisado no DDMPay';
-            document.getElementById('change-acordos').textContent = acordos > 0 ? `${acordos} usuários com acordo` : 'Nenhum acordo cruzado no período';
-            document.getElementById('change-taxa').textContent = disparos > 0 ? `${acordos} de ${disparos} usuários fecharam` : 'Baseado em usuários únicos';
-            document.getElementById('change-valor').textContent = pagaram > 0
-                ? `${pagaram} usuários pagaram`
-                : 'Nenhum pagamento no período';
-        }
+    async function excluirCampanha(campanha) {
+      const ok = confirm(`Excluir a campanha "${campanha}" dos rastreios locais?\n\nIsso nao altera o banco DDMPay.`);
+      if (!ok) return;
+      const response = await fetch(`/api/campanha/${encodeURIComponent(campanha)}`, { method: 'DELETE' });
+      if (!response.ok) {
+        alert('Nao foi possivel excluir a campanha.');
+        return;
+      }
+      await carregarDados();
+    }
 
-        function animarValor(id, valorFinal) {
-            const el = document.getElementById(id);
-            const atual = parseInt(el.textContent.replace(/\./g, '')) || 0;
-            const diff = valorFinal - atual;
-            
-            if (diff === 0) return;
-            
-            let frame = 0;
-            const framesT = 20;
-            const step = diff / framesT;
-            
-            const anim = setInterval(() => {
-                frame++;
-                const val = Math.round(atual + (step * frame));
-                el.textContent = val.toLocaleString('pt-BR');
-                if (frame >= framesT) {
-                    clearInterval(anim);
-                    el.textContent = valorFinal.toLocaleString('pt-BR');
-                }
-            }, 30);
-        }
-
-        function atualizarGraficos(dados) {
-            const canais = ['whatsapp', 'sms', 'email', 'rcs'];
-            const labelsFormatados = ['WhatsApp', 'SMS', 'E-mail', 'RCS'];
-            const coresBase = canais.map(c => PALETA_CANAIS[c]);
-
-            // 1. Chart Tendência (Linha) - USANDO DADOS REAIS
-            let dias = [];
-            let dCliques = [];
-            
-            if (dados.tendencia && dados.tendencia.length > 0) {
-                // Usar dados da API
-                const tendenciaMap = {};
-                dados.tendencia.forEach(item => {
-                    if (!tendenciaMap[item.data]) {
-                        tendenciaMap[item.data] = 0;
-                    }
-                    tendenciaMap[item.data] += item.cliques;
-                });
-                
-                // Ordenar por data
-                const datas = Object.keys(tendenciaMap).sort();
-                dias = datas.map(d => {
-                    const data = new Date(d);
-                    return data.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
-                });
-                dCliques = datas.map(d => tendenciaMap[d]);
-            }
-            // Sem dados reais => gráfico vazio (nada mockado)
-
-            if (chartTendencia) chartTendencia.destroy();
-            chartTendencia = new Chart(document.getElementById('chartTendencia'), {
-                type: 'line',
-                data: {
-                    labels: dias,
-                    datasets: [
-                        {
-                            label: 'Cliques no Link',
-                            data: dCliques,
-                            borderColor: '#94A3B8',
-                            backgroundColor: 'rgba(148, 163, 184, 0.1)',
-                            borderWidth: 2,
-                            tension: 0.4,
-                            fill: true
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: { legend: { position: 'top' } },
-                    scales: { y: { beginAtZero: true, grid: { borderDash: [4, 4] } } }
-                }
-            });
-
-            // 2. Chart Acordos por Canal (Doughnut) - usuarios com acordo por canal (VIEW)
-            const acordosCanal = dados.acordos_por_canal || {};
-            const dadosAcordos = canais.map(canal => {
-                const canalNormalizado = canal === 'email' ? 'E-mail' :
-                                         canal === 'whatsapp' ? 'WhatsApp' :
-                                         canal === 'sms' ? 'SMS' : 'RCS';
-                return acordosCanal[canalNormalizado] || 0;
-            });
-            
-            if (chartAcordosCanal) chartAcordosCanal.destroy();
-            chartAcordosCanal = new Chart(document.getElementById('chartAcordosCanal'), {
-                type: 'doughnut',
-                data: {
-                    labels: labelsFormatados,
-                    datasets: [{
-                        data: dadosAcordos,
-                        backgroundColor: coresBase,
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'right' } },
-                    cutout: '75%'
-                }
-            });
-
-            // 3. Chart Volume por Canal (Bar) - real quando webhook ativo
-            const dadosVolume = canais.map(canal => {
-                const canalNormalizado = canal === 'email' ? 'E-mail' :
-                                         canal === 'whatsapp' ? 'WhatsApp' :
-                                         canal === 'sms' ? 'SMS' : 'RCS';
-                return dados.volume_por_canal ? (dados.volume_por_canal[canalNormalizado] || 0) : 0;
-            });
-            
-            if (chartVolumeCanal) chartVolumeCanal.destroy();
-            chartVolumeCanal = new Chart(document.getElementById('chartVolumeCanal'), {
-                type: 'bar',
-                data: {
-                    labels: labelsFormatados,
-                    datasets: [{
-                        label: 'Volume DDMPay (R$)',
-                        data: dadosVolume,
-                        backgroundColor: coresBase,
-                        borderRadius: 6
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { borderDash: [4, 4] } } }
-                }
-            });
-
-            // 4. Chart Funil (Barra Horizontal)
-            if (chartFunil) chartFunil.destroy();
-            chartFunil = new Chart(document.getElementById('chartFunil'), {
-                type: 'bar',
-                data: {
-                    labels: ['Total de Cliques', 'Entraram DDMPay', 'Acordos Fechados', 'Valor Arrecadado (R$)'],
-                    datasets: [{
-                        label: 'Volume',
-                        data: [
-                            dados.resumo.cliques,
-                            dados.resumo.entraram_ddmpay || 0,
-                            dados.resumo.acordos,
-                            dados.resumo.valor_ddmpay / 1000  // Dividir por 1000 para caber no gráfico
-                        ],
-                        backgroundColor: [
-                            '#94A3B8',
-                            '#3B82F6',
-                            COR_PRIMARIA,
-                            '#10B981'
-                        ],
-                        borderRadius: 6
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { x: { grid: { display: false } }, y: { grid: { display: false } } }
-                }
-            });
-        }
-
-        function atualizarTabela(dados) {
-            const tbody = document.getElementById('tabela-acordos');
-            
-            if (!dados.acordos || dados.acordos.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">Nenhum acordo registrado neste período</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = dados.acordos.map(a => {
-                let badgeClass = '';
-                let statusText = '';
-                
-                if(a.status === 'pago') { badgeClass = 'badge-pago'; statusText = 'Pago no DDMPay'; }
-                else if(a.status === 'pendente') { badgeClass = 'badge-pendente'; statusText = 'Pendente'; }
-                else { badgeClass = 'badge-cancelado'; statusText = 'Cancelado/Expirado'; }
-
-                return `
-                <tr>
-                    <td>
-                        <div style="font-weight: 600;">${new Date(a.data).toLocaleDateString('pt-BR')}</div>
-                        <div style="font-size: 12px; color: var(--text-muted);">${new Date(a.data).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</div>
-                    </td>
-                    <td style="font-family: monospace; color: var(--text-muted);">${a.aluno_id}</td>
-                    <td>
-                        <span class="badge-canal canal-${a.canal}">${a.canal.toUpperCase()}</span>
-                    </td>
-                    <td>${a.campanha}</td>
-                    <td style="font-weight: 600;">R$ ${parseFloat(a.valor).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
-                </tr>
-            `}).join('');
-        }
-
-        function atualizarQuebras(dados) {
-            renderCampanhas(dados.por_campanha || {});
-            renderQuebra('tabela-canal', dados.por_canal_detalhe || {}, 'Nenhum canal no período');
-            renderFunilCampanha(dados.funil_por_campanha || {}, dados.abandono_por_campanha || {});
-        }
-
-        function renderCampanhas(mapa) {
-            const tbody = document.getElementById('tabela-campanha');
-            const linhas = Object.entries(mapa || {});
-            if (linhas.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma campanha no período</td></tr>';
-                return;
-            }
-
-            linhas.sort((a, b) => (b[1].valor_pago - a[1].valor_pago) || (b[1].cliques - a[1].cliques));
-            tbody.innerHTML = linhas.map(([nome, d]) => `
-                <tr>
-                    <td style="font-weight:600;">${nome}</td>
-                    <td>${(d.cliques || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.usuarios || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.entraram_ddmpay || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.com_acordo || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.pagaram || 0).toLocaleString('pt-BR')}</td>
-                    <td style="font-weight:600;">R$ ${(d.valor_pago || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                    <td><button type="button" class="btn-delete-row" data-campanha="${encodeURIComponent(nome)}">Excluir</button></td>
-                </tr>
-            `).join('');
-
-            tbody.querySelectorAll('.btn-delete-row').forEach(btn => {
-                btn.addEventListener('click', () => excluirCampanha(decodeURIComponent(btn.dataset.campanha)));
-            });
-        }
-
-        async function excluirCampanha(campanha) {
-            const ok = confirm(`Excluir a campanha "${campanha}" dos rastreios locais?\n\nIsso não altera o banco DDMPay.`);
-            if (!ok) return;
-
-            const response = await fetch(`/api/campanha/${encodeURIComponent(campanha)}`, { method: 'DELETE' });
-            if (!response.ok) {
-                alert('Não foi possível excluir a campanha.');
-                return;
-            }
-
-            await carregarDados();
-        }
-        function renderCampanhaDia(linhas) {
-            const tbody = document.getElementById('tabela-campanha-dia');
-            if (!linhas || linhas.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Nenhuma campanha por dia no periodo</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = linhas.map(d => `
-                <tr>
-                    <td style="font-weight:600;">${new Date(`${d.data}T00:00:00`).toLocaleDateString('pt-BR')}</td>
-                    <td style="font-weight:600;">${d.campanha || '(sem campanha)'}</td>
-                    <td>${(d.cliques || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.usuarios || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.entraram_ddmpay || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.com_acordo || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.pagaram || 0).toLocaleString('pt-BR')}</td>
-                    <td style="font-weight:600;">R$ ${(d.valor_pago || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                </tr>
-            `).join('');
-        }
-
-        function renderFunilCampanha(funil, abandonos) {
-            const tbody = document.getElementById('tabela-funil-campanha');
-            const campanhas = Array.from(new Set([
-                ...Object.keys(funil || {}),
-                ...Object.keys(abandonos || {})
-            ]));
-
-            if (campanhas.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Sem eventos detalhados. Configure o DDMPay para chamar /api/funil-evento em cada etapa.</td></tr>';
-                return;
-            }
-
-            campanhas.sort((a, b) => (((funil[b] || {}).paid || 0) - ((funil[a] || {}).paid || 0)));
-            tbody.innerHTML = campanhas.map(campanha => {
-                const f = funil[campanha] || {};
-                const abandono = maiorAbandono(abandonos[campanha] || {});
-                return `
-                    <tr>
-                        <td style="font-weight:600;">${campanha}</td>
-                        <td>${(f.click || 0).toLocaleString('pt-BR')}</td>
-                        <td>${(f.cpf_view || 0).toLocaleString('pt-BR')}</td>
-                        <td>${(f.cpf_submit || 0).toLocaleString('pt-BR')}</td>
-                        <td>${(f.payment_view || 0).toLocaleString('pt-BR')}</td>
-                        <td>${(f.payment_start || 0).toLocaleString('pt-BR')}</td>
-                        <td>${(f.paid || 0).toLocaleString('pt-BR')}</td>
-                        <td>${abandono}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        function maiorAbandono(abandonos) {
-            const itens = Object.values(abandonos || {});
-            if (itens.length === 0) return 'Sem dados';
-            itens.sort((a, b) => (b.clientes || 0) - (a.clientes || 0));
-            const item = itens[0];
-            return `${item.etapa_label || 'Etapa'} (${(item.clientes || 0).toLocaleString('pt-BR')})`;
-        }
-
-        function renderQuebra(tbodyId, mapa, vazioMsg) {
-            const tbody = document.getElementById(tbodyId);
-            const linhas = Object.entries(mapa);
-            if (linhas.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">${vazioMsg}</td></tr>`;
-                return;
-            }
-            // ordena por valor pago desc, depois cliques desc
-            linhas.sort((a, b) => (b[1].valor_pago - a[1].valor_pago) || (b[1].cliques - a[1].cliques));
-            tbody.innerHTML = linhas.map(([nome, d]) => `
-                <tr>
-                    <td style="font-weight:600;">${nome}</td>
-                    <td>${(d.cliques || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.usuarios || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.entraram_ddmpay || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.com_acordo || 0).toLocaleString('pt-BR')}</td>
-                    <td>${(d.pagaram || 0).toLocaleString('pt-BR')}</td>
-                    <td style="font-weight:600;">R$ ${(d.valor_pago || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
-                </tr>
-            `).join('');
-        }
-
-        // Simulação de Dados - SUBSTITUÍDO POR DADOS REAIS DO BANCO
-        async function carregarMetricasReais() {
-            try {
-                // Pegar datas dos filtros
-                const dataInicio = document.getElementById('data-inicio').value;
-                const dataFim = document.getElementById('data-fim').value;
-                const canal = document.getElementById('canal-filter').value;
-                const campanha = document.getElementById('campanha-filter').value;
-                
-                // Chamar API
-                const params = new URLSearchParams({
-                    data_inicio: dataInicio,
-                    data_fim: dataFim
-                });
-                if (canal) params.set('canal', canal);
-                if (campanha) params.set('campanha', campanha);
-
-                const response = await fetch(`/api/metricas?${params.toString()}`);
-                
-                if (!response.ok) {
-                    throw new Error(`Erro na API: ${response.status}`);
-                }
-                
-                const apiData = await response.json();
-                
-                const m = apiData.metricas;
-
-                return {
-                    resumo: {
-                        disparos: m.total_cliques_unicos || 0,
-                        cliques: m.total_cliques,
-                        entraram_ddmpay: m.total_entraram_ddmpay || 0,
-                        acordos: m.total_acordos || 0,
-                        pagaram: m.total_pagaram || 0,
-                        valor_ddmpay: m.valor_total || 0,
-                        ticket_medio: m.ticket_medio || 0
-                    },
-                    por_canal: m.por_canal || {},
-                    acordos_por_canal: m.acordos_por_canal || {},
-                    volume_por_canal: m.volume_por_canal || {},
-                    por_canal_detalhe: m.por_canal_detalhe || {},
-                    por_campanha: m.por_campanha || {},
-                    por_campanha_dia: m.por_campanha_dia || [],
-                    funil_por_campanha: m.funil_por_campanha || {},
-                    abandono_por_campanha: m.abandono_por_campanha || {},
-                    tendencia: m.tendencia_ultimos_7_dias || [],
-                    acordos: m.acordos || []
-                };
-                
-            } catch (erro) {
-                console.error('Erro ao carregar métricas reais:', erro);
-                // Fallback para dados de demonstração em caso de erro
-                return await simularDadosMetricas();
-            }
-        }
-        
-        async function simularDadosMetricas() {
-            return {
-                resumo: { disparos: 0, cliques: 0, acordos: 0, valor_ddmpay: 0 },
-                por_canal: {},
-                volume_por_canal: {},
-                tendencia: [],
-                acordos: []
-            };
-        }
-    </script>
+    function filtrarTabelaCampanhas() {
+      const value = (document.getElementById('campaignSearch').value || '').toLowerCase();
+      document.querySelectorAll('#campaignTable tbody tr').forEach(row => {
+        const campaign = (row.querySelector('.campaign-name')?.textContent || '').toLowerCase();
+        row.style.display = campaign.includes(value) ? '' : 'none';
+      });
+    }
+  </script>
 </body>
 </html>
