@@ -4,6 +4,7 @@ import builtins
 import json
 import os
 import base64
+import hmac
 import random
 import string
 import sys
@@ -45,6 +46,8 @@ FUNIL_ETAPAS = {
     'payment_start': 'Iniciou pagamento',
     'paid': 'Pagou',
 }
+CRM_API_KEY = os.environ.get('UTM_API_KEY')
+CANAL_VALIDO = {'sms', 'whatsapp', 'rcs', 'email'}
 
 # ============================================================================
 # CONFIGURAÇÃO SEGURA DO BANCO (usa variáveis de ambiente)
@@ -122,11 +125,13 @@ def decode_short_token(token):
         return None
 
 
-def ddmpay_url_from_params(params):
+def ddmpay_url_from_params(params, base_url=None):
     clean = {k: v for k, v in params.items() if v}
+    checkout_url = (base_url or CHECKOUT_URL).strip() or CHECKOUT_URL
     if clean:
-        return CHECKOUT_URL + '?' + urlencode(clean)
-    return CHECKOUT_URL
+        sep = '&' if '?' in checkout_url else '?'
+        return checkout_url + sep + urlencode(clean)
+    return checkout_url
 
 
 def gerar_codigo_curto(tamanho=7):
@@ -361,6 +366,72 @@ def salvar_evento_funil(tid, par1, par2, par3, etapa, pagina_url='', metadata=No
         return salvar_evento_funil_file(tid, par1, par2, par3, etapa, pagina_url, metadata)
 
 
+def api_key_autorizada():
+    if not CRM_API_KEY:
+        return False, ('API key nao configurada no servidor', 503)
+    enviada = request.headers.get('X-API-Key', '')
+    if not enviada or not hmac.compare_digest(enviada, CRM_API_KEY):
+        return False, ('API key invalida', 401)
+    return True, None
+
+
+def novo_tid():
+    return f"mt{gerar_codigo_curto(14).lower()}"
+
+
+def normalizar_aluno(payload):
+    if isinstance(payload, dict):
+        valor = payload.get('aluno_id') or payload.get('par1') or payload.get('cpf') or payload.get('documento')
+    else:
+        valor = payload
+    return str(valor or '').strip()
+
+
+def montar_link_utm(aluno_id, canal, campanha, url_destino=None, tid=None):
+    aluno_id = str(aluno_id or '').strip()
+    canal = str(canal or '').strip().lower()
+    campanha = str(campanha or '').strip()
+    url_destino = str(url_destino or CHECKOUT_URL).strip() or CHECKOUT_URL
+    tid = str(tid or novo_tid()).strip()
+
+    if not aluno_id:
+        return None, 'aluno_id e obrigatorio'
+    if canal not in CANAL_VALIDO:
+        return None, 'canal deve ser sms, whatsapp, rcs ou email'
+    if not campanha:
+        return None, 'campanha e obrigatoria'
+
+    codigo = criar_link_curto_db(aluno_id, canal, campanha, tid)
+    if not codigo:
+        return None, 'Nao foi possivel criar link curto'
+
+    base_url = request.host_url.rstrip('/')
+    return {
+        'aluno_id': aluno_id,
+        'par1': aluno_id,
+        'canal': canal,
+        'par2': canal,
+        'campanha': campanha,
+        'par3': campanha,
+        'tid': tid,
+        'codigo': codigo,
+        'link_curto': f"{base_url}/s/{codigo}",
+        'short_url': f"{base_url}/s/{codigo}",
+        'url_destino_final': ddmpay_url_from_params({
+            'par1': aluno_id,
+            'par2': canal,
+            'par3': campanha,
+            'tid': tid
+        }, url_destino),
+        'destination_url': ddmpay_url_from_params({
+            'par1': aluno_id,
+            'par2': canal,
+            'par3': campanha,
+            'tid': tid
+        }, url_destino)
+    }, None
+
+
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -478,6 +549,81 @@ def api_short_link():
         }), 200
     except Exception as e:
         print(f"[SHORT LINK] Erro: {e}")
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
+
+
+@app.route('/api/gerar-link', methods=['POST'])
+def api_gerar_link():
+    """API protegida para CRM gerar um link UTM individual."""
+    autorizado, erro = api_key_autorizada()
+    if not autorizado:
+        mensagem, status = erro
+        return jsonify({'status': 'erro', 'mensagem': mensagem}), status
+
+    try:
+        data = request.get_json(force=True) or {}
+        resultado, erro = montar_link_utm(
+            aluno_id=data.get('aluno_id') or data.get('par1') or data.get('cpf') or data.get('documento'),
+            canal=data.get('canal') or data.get('par2'),
+            campanha=data.get('campanha') or data.get('par3'),
+            url_destino=data.get('url_destino') or data.get('destination_url'),
+            tid=data.get('tid')
+        )
+        if erro:
+            return jsonify({'status': 'erro', 'mensagem': erro}), 400
+
+        return jsonify({'status': 'ok', **resultado}), 200
+    except Exception as e:
+        print(f"[GERAR LINK] Erro: {e}")
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
+
+
+@app.route('/api/gerar-links-lote', methods=['POST'])
+def api_gerar_links_lote():
+    """API protegida para CRM gerar links UTM em lote."""
+    autorizado, erro = api_key_autorizada()
+    if not autorizado:
+        mensagem, status = erro
+        return jsonify({'status': 'erro', 'mensagem': mensagem}), status
+
+    try:
+        data = request.get_json(force=True) or {}
+        alunos = data.get('alunos') or []
+        canal = data.get('canal') or data.get('par2')
+        campanha = data.get('campanha') or data.get('par3')
+        url_destino = data.get('url_destino') or data.get('destination_url')
+
+        if not isinstance(alunos, list) or not alunos:
+            return jsonify({'status': 'erro', 'mensagem': 'alunos deve ser uma lista com pelo menos um item'}), 400
+        if len(alunos) > 1000:
+            return jsonify({'status': 'erro', 'mensagem': 'limite maximo de 1000 alunos por lote'}), 400
+
+        links = []
+        erros = []
+        for index, item in enumerate(alunos):
+            aluno_id = normalizar_aluno(item)
+            tid_item = item.get('tid') if isinstance(item, dict) else None
+            resultado, erro = montar_link_utm(
+                aluno_id=aluno_id,
+                canal=canal,
+                campanha=campanha,
+                url_destino=url_destino,
+                tid=tid_item
+            )
+            if erro:
+                erros.append({'index': index, 'aluno_id': aluno_id, 'mensagem': erro})
+                continue
+            links.append(resultado)
+
+        status_code = 207 if erros and links else (400 if erros else 200)
+        return jsonify({
+            'status': 'ok' if links else 'erro',
+            'total': len(links),
+            'links': links,
+            'erros': erros
+        }), status_code
+    except Exception as e:
+        print(f"[GERAR LINKS LOTE] Erro: {e}")
         return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
 
 
