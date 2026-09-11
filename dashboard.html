@@ -552,7 +552,7 @@
                 <div class="kpi-label">Entraram no DDMPay</div>
                 <div class="kpi-value" id="total-entraram-ddmpay">0</div>
                 <div class="kpi-change">
-                    <span class="change-neutral" id="change-entraram-ddmpay">CPF localizado em ddmpay_acessos</span>
+                    <span class="change-neutral" id="change-entraram-ddmpay">CPF pesquisado no DDMPay</span>
                 </div>
             </div>
 
@@ -824,8 +824,8 @@
 
             document.getElementById('change-cliques').textContent = `Total de cliques no período`;
             document.getElementById('change-entraram-ddmpay').textContent = entraram_ddmpay > 0
-                ? `${entraram_ddmpay} chegaram apos informar CPF`
-                : 'Sem CPF localizado no DDMPay';
+                ? `${entraram_ddmpay} CPFs pesquisados no DDMPay`
+                : 'Sem CPF pesquisado no DDMPay';
             document.getElementById('change-acordos').textContent = acordos > 0 ? `${acordos} usuários com acordo` : 'Nenhum acordo cruzado no período';
             document.getElementById('change-taxa').textContent = disparos > 0 ? `${acordos} de ${disparos} usuários fecharam` : 'Baseado em usuários únicos';
             document.getElementById('change-valor').textContent = pagaram > 0

@@ -818,48 +818,103 @@ def api_metricas():
                 continue
             tracked_by_par1.setdefault(par1_ev, []).append(ev)
 
+        def as_datetime(value):
+            if isinstance(value, datetime):
+                return value
+            if not value:
+                return None
+            try:
+                return datetime.fromisoformat(str(value).replace('Z', '+00:00')).replace(tzinfo=None)
+            except Exception:
+                return None
+
+        def inferir_evento_pos_clique(click_ev, etapa, etapa_label, created_at):
+            return {
+                'tid': click_ev.get('tid'),
+                'par1': click_ev.get('par1'),
+                'par2': click_ev.get('par2'),
+                'par3': click_ev.get('par3'),
+                'etapa': etapa,
+                'etapa_label': etapa_label,
+                'pagina_url': '',
+                'created_at': created_at or datetime.now(),
+            }
+
+        def clicks_na_janela(documento, data_evento, horas=2):
+            data_evento = as_datetime(data_evento)
+            if not data_evento:
+                return []
+            atribuiveis = []
+            for click_ev in tracked_by_par1.get(documento, []):
+                data_clique = as_datetime(click_ev.get('created_at'))
+                if data_clique and data_clique <= data_evento <= data_clique + timedelta(hours=horas):
+                    atribuiveis.append(click_ev)
+            return atribuiveis
+
         if tracked_by_par1:
             try:
                 placeholders = ','.join(['%s'] * len(tracked_by_par1))
                 cursor.execute(f"""
-                    SELECT documento, MAX(data) as data,
-                           MAX(CASE WHEN acordo IS NOT NULL AND acordo <> '' THEN 1 ELSE 0 END) as tem_acordo,
-                           MAX(CASE WHEN valor > 0 THEN 1 ELSE 0 END) as tem_valor
+                    SELECT documento, data,
+                           CASE WHEN acordo IS NOT NULL AND acordo <> '' THEN 1 ELSE 0 END as tem_acordo,
+                           CASE WHEN valor > 0 THEN 1 ELSE 0 END as tem_valor
                     FROM ddm_ddmadv.ddmpay_acessos
                     WHERE DATE(data) BETWEEN %s AND %s
                       AND documento IN ({placeholders})
-                    GROUP BY documento
+                    ORDER BY data ASC
                 """, [data_inicio, data_fim, *tracked_by_par1.keys()])
                 for row in cursor.fetchall():
                     documento = str(row.get('documento') or '').strip()
-                    for click_ev in tracked_by_par1.get(documento, []):
-                        base_ev = {
-                            'tid': click_ev.get('tid'),
-                            'par1': click_ev.get('par1'),
-                            'par2': click_ev.get('par2'),
-                            'par3': click_ev.get('par3'),
-                            'pagina_url': '',
-                            'created_at': row.get('data') or datetime.now(),
-                        }
-                        event_rows.append({
-                            **base_ev,
-                            'etapa': 'cpf_submit',
-                            'etapa_label': 'Informou o CPF / entrou no DDMPay',
-                        })
+                    data_evento = row.get('data')
+                    for click_ev in clicks_na_janela(documento, data_evento):
+                        event_rows.append(inferir_evento_pos_clique(
+                            click_ev, 'cpf_submit', 'Informou o CPF / entrou no DDMPay', data_evento
+                        ))
                         if row.get('tem_acordo'):
-                            event_rows.append({
-                                **base_ev,
-                                'etapa': 'payment_view',
-                                'etapa_label': 'Gerou acordo no DDMPay',
-                            })
+                            event_rows.append(inferir_evento_pos_clique(
+                                click_ev, 'payment_view', 'Gerou acordo no DDMPay', data_evento
+                            ))
                         if row.get('tem_valor'):
-                            event_rows.append({
-                                **base_ev,
-                                'etapa': 'paid',
-                                'etapa_label': 'Pagou',
-                            })
+                            event_rows.append(inferir_evento_pos_clique(
+                                click_ev, 'paid', 'Pagou', data_evento
+                            ))
             except Exception as e:
                 print(f"[DDMPAY ACESSOS] nao foi possivel cruzar etapas: {e}")
+
+            try:
+                placeholders = ','.join(['%s'] * len(tracked_by_par1))
+                cursor.execute(f"""
+                    SELECT documento, data, acao
+                    FROM ddm_ddmadv.IA_acessos
+                    WHERE DATE(data) BETWEEN %s AND %s
+                      AND documento IN ({placeholders})
+                      AND acao IN ('pesquisa', 'retell_fase1', 'simulacao', 'simulacao_meuacordo', 'acordo')
+                    ORDER BY data ASC
+                """, [data_inicio, data_fim, *tracked_by_par1.keys()])
+                mapa_ia = {
+                    'pesquisa': ('cpf_submit', 'CPF pesquisado no DDMPay'),
+                    'retell_fase1': ('cpf_submit', 'CPF pesquisado no DDMPay'),
+                    'simulacao': ('payment_view', 'Visualizou simulacao de acordo'),
+                    'simulacao_meuacordo': ('payment_view', 'Visualizou simulacao de acordo'),
+                    'acordo': ('payment_start', 'Iniciou acordo no DDMPay'),
+                }
+                vistos_ia = set()
+                for row in cursor.fetchall():
+                    documento = str(row.get('documento') or '').strip()
+                    data_evento = row.get('data')
+                    etapa, etapa_label = mapa_ia.get((row.get('acao') or '').strip(), (None, None))
+                    if not etapa:
+                        continue
+                    for click_ev in clicks_na_janela(documento, data_evento):
+                        dedup_key = (click_ev.get('tid'), documento, etapa)
+                        if dedup_key in vistos_ia:
+                            continue
+                        vistos_ia.add(dedup_key)
+                        event_rows.append(inferir_evento_pos_clique(
+                            click_ev, etapa, etapa_label, data_evento
+                        ))
+            except Exception as e:
+                print(f"[IA ACESSOS] nao foi possivel cruzar etapas: {e}")
 
         ordem_etapas = {
             'click': 1,
