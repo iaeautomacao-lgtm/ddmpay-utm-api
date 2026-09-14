@@ -150,13 +150,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- CRIAÇÃO INDIVIDUAL LOGIC ---
-    const buildIndividualURL = async () => {
+    const getCampaignFormData = () => {
         // URL padrão do DDMPay (domínio que GRAVA o clique em links_ddmpay)
         let baseURL = indUrl.value.trim() || 'https://ddmpay.ddmacordos.com/acesso/';
         
         if (!baseURL) {
-            resetIndividualUI();
-            return;
+            return null;
         }
 
         if (!/^https?:\/\//i.test(baseURL)) {
@@ -173,8 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             if (!params.sistema || !params.canal || !params.campanha) {
-                resetIndividualUI();
-                return;
+                return null;
             }
 
             const signature = `${url.origin}${url.pathname}|${params.sistema}|${params.canal}|${params.campanha}`;
@@ -184,20 +182,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const payload = { ...params, tid: currentTrackingId };
-            outputLink.textContent = 'Gerando URL curta...';
-            outputLink.classList.remove('active');
+            url.searchParams.set('sistema', params.sistema);
+            url.searchParams.set('canal', params.canal);
+            url.searchParams.set('campanha', params.campanha);
+            url.searchParams.set('tid', currentTrackingId);
+            url.searchParams.set('utm_source', params.sistema);
+            url.searchParams.set('utm_medium', params.canal);
+            url.searchParams.set('utm_campaign', params.campanha);
 
-            const result = await resolveShortLink(url.toString(), payload);
-
-            outputLink.textContent = result.shortUrl;
-            outputLink.classList.add('active');
-            if (destinationLink) {
-                destinationLink.textContent = result.destinationUrl;
-                destinationLink.title = result.destinationUrl;
-            }
+            return { baseURL: url.origin + url.pathname, destinationUrl: url.toString(), payload };
 
         } catch (e) {
+            return null;
+        }
+    };
+
+    const buildIndividualURL = () => {
+        const data = getCampaignFormData();
+        if (!data) {
             resetIndividualUI();
+            return;
+        }
+
+        outputLink.textContent = 'Clique em Salvar Link para criar a URL curta';
+        outputLink.classList.remove('active');
+        if (destinationLink) {
+            destinationLink.textContent = data.destinationUrl;
+            destinationLink.title = data.destinationUrl;
         }
     };
 
@@ -286,9 +297,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    btnSaveUtm.addEventListener('click', () => {
-        const link = outputLink.textContent;
-        if (!link || !outputLink.classList.contains('active')) {
+    btnSaveUtm.addEventListener('click', async () => {
+        const formData = getCampaignFormData();
+        let link = '';
+        if (!formData) {
             alert('Por favor, crie uma URL parametrizada válida primeiro.');
             return;
         }
@@ -296,6 +308,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const source = document.getElementById('ind-source').value.trim();
         const medium = document.getElementById('ind-medium').value.trim();
         const campaign = document.getElementById('ind-campaign').value.trim();
+
+        outputLink.textContent = 'Gerando URL curta...';
+        outputLink.classList.remove('active');
+
+        let result;
+        try {
+            result = await resolveShortLink(formData.baseURL, formData.payload);
+            link = result.shortUrl;
+        } catch (e) {
+            outputLink.textContent = 'Nao foi possivel gerar o link';
+            alert(e.message || 'Nao foi possivel gerar o link da campanha.');
+            return;
+        }
+
+        outputLink.textContent = result.shortUrl;
+        outputLink.classList.add('active');
+        if (destinationLink) {
+            destinationLink.textContent = result.destinationUrl;
+            destinationLink.title = result.destinationUrl;
+        }
 
         // Avoid exact duplicate addition
         if (savedUTMs.some(item => item.fullUrl === link)) {
@@ -305,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         savedUTMs.push({
             fullUrl: link,
-            destinationUrl: destinationLink ? destinationLink.textContent : '',
+            destinationUrl: result.destinationUrl,
             source,
             medium,
             campaign
