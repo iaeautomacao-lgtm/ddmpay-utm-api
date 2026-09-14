@@ -682,7 +682,8 @@
 
       try {
         const dados = await carregarMetricasReais();
-        atualizarFiltroCampanhas(dados.por_campanha || {});
+        const campanhasCriadas = await carregarCampanhasCriadas();
+        atualizarFiltroCampanhas(dados.por_campanha || {}, campanhasCriadas);
         updateDashboard(dados);
         renderConversionChart(dados);
         renderChannels(dados.por_canal_detalhe || {});
@@ -733,7 +734,18 @@
       };
     }
 
-    function atualizarFiltroCampanhas(mapaCampanhas) {
+    async function carregarCampanhasCriadas() {
+      try {
+        const response = await fetch('/api/campanhas');
+        if (!response.ok) return [];
+        const data = await response.json();
+        return (data.campanhas || []).map(item => item.campanha).filter(Boolean);
+      } catch (erro) {
+        return [];
+      }
+    }
+
+    function atualizarFiltroCampanhas(mapaCampanhas, campanhasCriadas = []) {
       const select = document.getElementById('campanha-filter');
       const selecionada = select.value;
       const nomes = new Set();
@@ -741,6 +753,7 @@
         if (option.value) nomes.add(option.value);
       });
       Object.keys(mapaCampanhas || {}).forEach(nome => nomes.add(nome));
+      campanhasCriadas.forEach(nome => nomes.add(nome));
 
       const ordenadas = Array.from(nomes).sort((a, b) => a.localeCompare(b, 'pt-BR'));
       select.innerHTML = '<option value="">Todas as campanhas</option>' + ordenadas.map(nome => {

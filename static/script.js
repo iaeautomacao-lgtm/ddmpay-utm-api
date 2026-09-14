@@ -72,29 +72,27 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const resolveShortLink = async (baseURL, payload) => {
-        const fallback = {
-            shortUrl: buildShortLink(payload),
-            destinationUrl: buildDestinationLink(baseURL, payload)
-        };
+        const response = await fetch('/api/campanha-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sistema: payload.sistema || payload.par1,
+                canal: payload.canal || payload.par2,
+                campanha: payload.campanha || payload.par3,
+                url_destino: baseURL,
+                janela_minutos: 30
+            })
+        });
 
-        try {
-            const response = await fetch('/api/short-link', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) return fallback;
-            const data = await response.json();
-            if (!data.short_url || !data.destination_url) return fallback;
-
-            return {
-                shortUrl: data.short_url,
-                destinationUrl: data.destination_url
-            };
-        } catch (e) {
-            return fallback;
+        const data = await response.json();
+        if (!response.ok || !data.short_url || !data.destination_url) {
+            throw new Error(data.mensagem || 'Nao foi possivel gerar o link da campanha');
         }
+
+        return {
+            shortUrl: data.short_url,
+            destinationUrl: data.destination_url
+        };
     };
 
     // --- TAB SYSTEM ---
@@ -169,17 +167,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = new URL(baseURL);
             
             const params = {
-                par1: document.getElementById('ind-source').value.trim(),
-                par2: document.getElementById('ind-medium').value.trim(),
-                par3: document.getElementById('ind-campaign').value.trim(),
+                sistema: document.getElementById('ind-source').value.trim(),
+                canal: document.getElementById('ind-medium').value.trim(),
+                campanha: document.getElementById('ind-campaign').value.trim(),
             };
 
-            if (!params.par1 || !params.par2 || !params.par3) {
+            if (!params.sistema || !params.canal || !params.campanha) {
                 resetIndividualUI();
                 return;
             }
 
-            const signature = `${url.origin}${url.pathname}|${params.par1}|${params.par2}|${params.par3}`;
+            const signature = `${url.origin}${url.pathname}|${params.sistema}|${params.canal}|${params.campanha}`;
             if (signature !== currentTrackingSignature) {
                 currentTrackingSignature = signature;
                 currentTrackingId = buildTrackingId();
@@ -359,9 +357,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         const u = new URL(cleanUrl);
                         const payload = {
-                            par1: src,
-                            par2: medium,
-                            par3: cam,
+                            sistema: src,
+                            canal: medium,
+                            campanha: cam,
                             tid: buildTrackingId()
                         };
 

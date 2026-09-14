@@ -1,8 +1,8 @@
 # API UTM para CRM
 
-Use esta API para gerar links rastreáveis antes do disparo de campanhas.
+Use esta API para criar um link unico por campanha. O CRM deve gerar o link antes do disparo e usar o `link_campanha` na mensagem.
 
-Todas as chamadas devem enviar o header:
+Todas as chamadas do CRM devem enviar:
 
 ```http
 X-API-Key: sua_chave_secreta
@@ -15,56 +15,19 @@ Configure a chave no servidor em `.env`:
 UTM_API_KEY=sua_chave_secreta
 ```
 
-## Gerar um link
+## Criar campanha
 
 ```http
-POST https://utmpay.grupoddm.ia.br/api/gerar-link
+POST https://utmpay.grupoddm.ia.br/api/criar-campanha
 ```
 
 ```json
 {
-  "aluno_id": "12345678901",
+  "sistema": "ddm",
   "canal": "sms",
-  "campanha": "cobranca_setembro_lote1",
-  "url_destino": "https://ddmpay.ddmacordos.com/acesso/"
-}
-```
-
-Resposta:
-
-```json
-{
-  "status": "ok",
-  "aluno_id": "12345678901",
-  "canal": "sms",
-  "campanha": "cobranca_setembro_lote1",
-  "tid": "mtabc123",
-  "link_curto": "https://utmpay.grupoddm.ia.br/s/abc123",
-  "url_destino_final": "https://ddmpay.ddmacordos.com/acesso/?par1=12345678901&par2=sms&par3=cobranca_setembro_lote1&tid=mtabc123"
-}
-```
-
-O CRM deve usar `link_curto` na mensagem enviada ao aluno.
-
-## Gerar links em lote
-
-```http
-POST https://utmpay.grupoddm.ia.br/api/gerar-links-lote
-```
-
-```json
-{
-  "canal": "whatsapp",
   "campanha": "cobranca_setembro_lote1",
   "url_destino": "https://ddmpay.ddmacordos.com/acesso/",
-  "alunos": [
-    "12345678901",
-    "98765432100",
-    {
-      "aluno_id": "11122233344",
-      "tid": "id_externo_opcional"
-    }
-  ]
+  "janela_minutos": 30
 }
 ```
 
@@ -73,23 +36,56 @@ Resposta:
 ```json
 {
   "status": "ok",
-  "total": 3,
-  "links": [
-    {
-      "aluno_id": "12345678901",
-      "link_curto": "https://utmpay.grupoddm.ia.br/s/abc123",
-      "tid": "mtabc123"
-    }
-  ],
-  "erros": []
+  "codigo": "abc123",
+  "tid": "mtabc123",
+  "sistema": "ddm",
+  "canal": "sms",
+  "campanha": "cobranca_setembro_lote1",
+  "link_campanha": "https://utmpay.grupoddm.ia.br/c/abc123",
+  "url_destino_final": "https://ddmpay.ddmacordos.com/acesso/?sistema=ddm&canal=sms&campanha=cobranca_setembro_lote1&tid=mtabc123&utm_source=ddm&utm_medium=sms&utm_campaign=cobranca_setembro_lote1"
 }
 ```
 
-Campos aceitos:
+O CRM deve enviar na mensagem somente o campo `link_campanha`.
 
-- `canal`: `sms`, `whatsapp`, `rcs` ou `email`.
-- `campanha`: nome/lote da campanha.
-- `url_destino`: opcional; se não enviar, usa `DDMPAY_CHECKOUT_URL`.
-- `alunos`: lista de CPFs/IDs ou objetos com `aluno_id`.
+## Como o rastreamento funciona
 
-Limite atual: 1000 alunos por chamada.
+Quando o aluno clica em `link_campanha`, nosso sistema registra:
+
+- campanha;
+- sistema/instituicao;
+- canal;
+- data e hora do clique;
+- visitante unico aproximado.
+
+Depois disso, o dashboard cruza os cliques com os registros do banco `IA_acessos` dentro da janela configurada, normalmente 30 minutos. Assim a ferramenta mostra por campanha:
+
+- total de cliques;
+- visitantes unicos;
+- alunos identificados no sistema;
+- alunos que pesquisaram CPF;
+- alunos que visualizaram simulacao/acordo;
+- alunos que iniciaram acordo.
+
+## Sistemas aceitos
+
+- `ddm`
+- `cruzeirodosul`
+- `yduqs`
+- `anima`
+- `anima2`
+- `ubec`
+- `neon`
+- `avenida`
+- `datora`
+- `vero`
+- `vero2`
+- `verob2b`
+- `fiergs`
+- `fumec`
+
+Light e SESI/SENAI nao entram nesse rastreamento.
+
+## Observacao
+
+As APIs antigas `/api/gerar-link` e `/api/gerar-links-lote` continuam existindo para casos em que o CRM consiga enviar links individuais por aluno. Para campanhas com um link unico, use `/api/criar-campanha`.

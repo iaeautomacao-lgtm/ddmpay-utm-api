@@ -4,10 +4,12 @@ import builtins
 import json
 import os
 import base64
+import hashlib
 import hmac
 import random
 import string
 import sys
+import unicodedata
 from datetime import datetime, timedelta
 import mysql.connector
 from mysql.connector import Error
@@ -36,6 +38,7 @@ load_env_file()
 CHECKOUT_URL = os.environ.get('DDMPAY_CHECKOUT_URL', 'https://ddmpay.ddmacordos.com/acesso/')
 DATA_DIR = os.environ.get('DDMPAY_DATA_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data'))
 SHORT_LINKS_FILE = os.path.join(DATA_DIR, 'short_links.json')
+CAMPAIGN_LINKS_FILE = os.path.join(DATA_DIR, 'campaign_links.json')
 FUNNEL_EVENTS_FILE = os.path.join(DATA_DIR, 'funnel_events.jsonl')
 EXCLUDED_CAMPAIGNS_FILE = os.path.join(DATA_DIR, 'excluded_campaigns.json')
 FUNIL_ETAPAS = {
@@ -48,6 +51,23 @@ FUNIL_ETAPAS = {
 }
 CRM_API_KEY = os.environ.get('UTM_API_KEY')
 CANAL_VALIDO = {'sms', 'whatsapp', 'rcs', 'email'}
+SISTEMAS_RASTREADOS = {
+    'anima': 'Anima',
+    'anima2': 'Anima 2',
+    'avenida': 'Avenida',
+    'cruzeirodosul': 'Cruzeiro do Sul',
+    'datora': 'Datora',
+    'fiergs': 'FIERGS',
+    'neon': 'Neon',
+    'ubec': 'UBEC',
+    'vero': 'Vero',
+    'vero2': 'Vero 2',
+    'verob2b': 'Vero B2B',
+    'yduqs': 'YDUQS',
+    'ddm': 'DDM Cobranca',
+    'fumec': 'FUMEC',
+}
+SISTEMAS_EXCLUIDOS = {'light', 'sesi', 'senai', 'sesisenai'}
 
 # ============================================================================
 # CONFIGURAÇÃO SEGURA DO BANCO (usa variáveis de ambiente)
@@ -161,6 +181,117 @@ def save_short_links_file(links):
         json.dump(links, f, ensure_ascii=False)
 
 
+def slug_simples(valor):
+    texto = str(valor or '').strip().lower()
+    texto = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('ascii')
+    return ''.join(ch for ch in texto if ch.isalnum())
+
+
+def normalizar_sistema(sistema):
+    slug = slug_simples(sistema)
+    aliases = {
+        'cruzeirodosul': 'cruzeirodosul',
+        'cruzeiro': 'cruzeirodosul',
+        'anima': 'anima',
+        'anima2': 'anima2',
+        'avenida': 'avenida',
+        'datora': 'datora',
+        'fiergs': 'fiergs',
+        'neon': 'neon',
+        'ubec': 'ubec',
+        'vero': 'vero',
+        'vero2': 'vero2',
+        'verob2b': 'verob2b',
+        'yduqs': 'yduqs',
+        'ddm': 'ddm',
+        'ddmcobranca': 'ddm',
+        'fumec': 'fumec',
+    }
+    return aliases.get(slug, slug)
+
+
+def load_campaign_links_file():
+    try:
+        ensure_data_dir()
+        if not os.path.exists(CAMPAIGN_LINKS_FILE):
+            return {}
+        with open(CAMPAIGN_LINKS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception as e:
+        print(f"[CAMPAIGN LINK FILE] erro ao ler: {e}")
+        return {}
+
+
+def save_campaign_links_file(links):
+    ensure_data_dir()
+    with open(CAMPAIGN_LINKS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(links, f, ensure_ascii=False, indent=2)
+
+
+def criar_link_campanha_file(sistema, canal, campanha, url_destino, tid=None, janela_minutos=30):
+    sistema_norm = normalizar_sistema(sistema)
+    canal = str(canal or '').strip().lower()
+    campanha = str(campanha or '').strip()
+    url_destino = str(url_destino or CHECKOUT_URL).strip() or CHECKOUT_URL
+
+    try:
+        janela_minutos = int(janela_minutos or 30)
+    except Exception:
+        janela_minutos = 30
+    janela_minutos = max(1, min(janela_minutos, 1440))
+
+    if not sistema_norm:
+        return None, 'sistema e obrigatorio'
+    if sistema_norm in SISTEMAS_EXCLUIDOS:
+        return None, 'sistema nao rastreavel'
+    if sistema_norm not in SISTEMAS_RASTREADOS:
+        return None, 'sistema invalido ou ainda nao cadastrado para rastreamento'
+    if canal not in CANAL_VALIDO:
+        return None, 'canal deve ser sms, whatsapp, rcs ou email'
+    if not campanha:
+        return None, 'campanha e obrigatoria'
+
+    links = load_campaign_links_file()
+    for item in links.values():
+        if (
+            normalizar_sistema(item.get('sistema')) == sistema_norm
+            and str(item.get('canal') or '').lower() == canal
+            and str(item.get('campanha') or '').strip() == campanha
+            and str(item.get('url_destino') or '').strip() == url_destino
+        ):
+            return item, None
+
+    for _ in range(12):
+        codigo = gerar_codigo_curto()
+        if codigo in links:
+            continue
+        item = {
+            'codigo': codigo,
+            'tid': str(tid or novo_tid()).strip(),
+            'sistema': sistema_norm,
+            'sistema_label': SISTEMAS_RASTREADOS.get(sistema_norm, sistema_norm),
+            'canal': canal,
+            'campanha': campanha,
+            'url_destino': url_destino,
+            'janela_minutos': janela_minutos,
+            'created_at': datetime.now().isoformat(),
+        }
+        links[codigo] = item
+        save_campaign_links_file(links)
+        return item, None
+    return None, 'Nao foi possivel criar link de campanha'
+
+
+def buscar_link_campanha_file(codigo):
+    return load_campaign_links_file().get(codigo)
+
+
+def visitor_key_from_request():
+    raw = f"{request.remote_addr or ''}|{request.headers.get('User-Agent', '')}"
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:24]
+
+
 def criar_link_curto_file(par1, par2, par3, tid):
     links = load_short_links_file()
     for _ in range(12):
@@ -245,7 +376,7 @@ def excluir_campanha_local(campanha):
     if not campanha:
         return {'short_links': 0, 'eventos': 0}
 
-    removidos = {'short_links': 0, 'eventos': 0}
+    removidos = {'short_links': 0, 'campaign_links': 0, 'eventos': 0}
     excluidas = load_excluded_campaigns()
     excluidas.add(campanha)
     save_excluded_campaigns(excluidas)
@@ -259,6 +390,16 @@ def excluir_campanha_local(campanha):
         removidos['short_links'] = len(links) - len(links_filtrados)
         if removidos['short_links']:
             save_short_links_file(links_filtrados)
+
+    campaign_links = load_campaign_links_file()
+    if campaign_links:
+        campaign_links_filtrados = {
+            codigo: link for codigo, link in campaign_links.items()
+            if (link.get('campanha') or '').strip() != campanha
+        }
+        removidos['campaign_links'] = len(campaign_links) - len(campaign_links_filtrados)
+        if removidos['campaign_links']:
+            save_campaign_links_file(campaign_links_filtrados)
 
     if os.path.exists(FUNNEL_EVENTS_FILE):
         linhas_mantidas = []
@@ -432,6 +573,37 @@ def montar_link_utm(aluno_id, canal, campanha, url_destino=None, tid=None):
     }, None
 
 
+def montar_link_campanha(sistema, canal, campanha, url_destino=None, tid=None, janela_minutos=30):
+    item, erro = criar_link_campanha_file(
+        sistema=sistema,
+        canal=canal,
+        campanha=campanha,
+        url_destino=url_destino,
+        tid=tid,
+        janela_minutos=janela_minutos,
+    )
+    if erro:
+        return None, erro
+
+    base_url = request.host_url.rstrip('/')
+    params = {
+        'sistema': item['sistema'],
+        'canal': item['canal'],
+        'campanha': item['campanha'],
+        'tid': item['tid'],
+        'utm_source': item['sistema'],
+        'utm_medium': item['canal'],
+        'utm_campaign': item['campanha'],
+    }
+    return {
+        **item,
+        'link_campanha': f"{base_url}/c/{item['codigo']}",
+        'short_url': f"{base_url}/c/{item['codigo']}",
+        'url_destino_final': ddmpay_url_from_params(params, item['url_destino']),
+        'destination_url': ddmpay_url_from_params(params, item['url_destino']),
+    }, None
+
+
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -520,6 +692,53 @@ def link_super_curto(codigo):
     return redirect(checkout_url)
 
 
+@app.route('/c/<codigo>', methods=['GET'])
+def link_campanha(codigo):
+    """
+    Redireciona link unico de campanha.
+    Exemplo: /c/a8K2pQ9 -> destino com sistema/canal/campanha/tid.
+    """
+    data = buscar_link_campanha_file(codigo)
+    if not data:
+        return jsonify({'status': 'erro', 'mensagem': 'Campanha nao encontrada'}), 404
+
+    params = {
+        'sistema': data.get('sistema'),
+        'canal': data.get('canal'),
+        'campanha': data.get('campanha'),
+        'tid': data.get('tid'),
+        'utm_source': data.get('sistema'),
+        'utm_medium': data.get('canal'),
+        'utm_campaign': data.get('campanha'),
+    }
+    checkout_url = ddmpay_url_from_params(params, data.get('url_destino'))
+    metadata = {
+        'tipo_link': 'campanha',
+        'codigo': codigo,
+        'sistema': data.get('sistema'),
+        'sistema_label': data.get('sistema_label'),
+        'url_destino': data.get('url_destino'),
+        'janela_minutos': data.get('janela_minutos') or 30,
+        'visitor_key': visitor_key_from_request(),
+        'ip': request.remote_addr,
+        'user_agent': request.headers.get('User-Agent', ''),
+    }
+    try:
+        salvar_evento_funil(
+            data.get('tid'),
+            '',
+            data.get('canal'),
+            data.get('campanha'),
+            'click',
+            checkout_url,
+            metadata
+        )
+    except Exception as e:
+        print(f"[LINK CAMPANHA] clique nao salvo no funil: {e}")
+    print(f"[LINK CAMPANHA] codigo={codigo} sistema={data.get('sistema')} destino={checkout_url}")
+    return redirect(checkout_url)
+
+
 @app.route('/api/short-link', methods=['POST'])
 def api_short_link():
     """Cria link curto real salvo no banco."""
@@ -549,6 +768,65 @@ def api_short_link():
         }), 200
     except Exception as e:
         print(f"[SHORT LINK] Erro: {e}")
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
+
+
+@app.route('/api/campanha-link', methods=['POST'])
+def api_campanha_link():
+    """Cria link unico de campanha para uso pela tela interna."""
+    try:
+        data = request.get_json(force=True) or {}
+        resultado, erro = montar_link_campanha(
+            sistema=data.get('sistema') or data.get('instituicao'),
+            canal=data.get('canal') or data.get('par2'),
+            campanha=data.get('campanha') or data.get('par3'),
+            url_destino=data.get('url_destino') or data.get('destination_url'),
+            tid=data.get('tid'),
+            janela_minutos=data.get('janela_minutos') or data.get('janela') or 30,
+        )
+        if erro:
+            return jsonify({'status': 'erro', 'mensagem': erro}), 400
+        return jsonify({'status': 'ok', **resultado}), 200
+    except Exception as e:
+        print(f"[CAMPANHA LINK] Erro: {e}")
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
+
+
+@app.route('/api/criar-campanha', methods=['POST'])
+def api_criar_campanha():
+    """API protegida para CRM criar link unico de campanha."""
+    autorizado, erro = api_key_autorizada()
+    if not autorizado:
+        mensagem, status = erro
+        return jsonify({'status': 'erro', 'mensagem': mensagem}), status
+
+    try:
+        data = request.get_json(force=True) or {}
+        resultado, erro = montar_link_campanha(
+            sistema=data.get('sistema') or data.get('instituicao'),
+            canal=data.get('canal') or data.get('par2'),
+            campanha=data.get('campanha') or data.get('par3'),
+            url_destino=data.get('url_destino') or data.get('destination_url'),
+            tid=data.get('tid'),
+            janela_minutos=data.get('janela_minutos') or data.get('janela') or 30,
+        )
+        if erro:
+            return jsonify({'status': 'erro', 'mensagem': erro}), 400
+        return jsonify({'status': 'ok', **resultado}), 200
+    except Exception as e:
+        print(f"[CRIAR CAMPANHA] Erro: {e}")
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
+
+
+@app.route('/api/campanhas', methods=['GET'])
+def api_listar_campanhas():
+    """Lista links unicos de campanha criados."""
+    try:
+        links = list(load_campaign_links_file().values())
+        links.sort(key=lambda item: item.get('created_at') or '', reverse=True)
+        return jsonify({'status': 'ok', 'total': len(links), 'campanhas': links}), 200
+    except Exception as e:
+        print(f"[LISTAR CAMPANHAS] Erro: {e}")
         return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
 
 
@@ -1013,7 +1291,7 @@ def api_metricas():
             filtros_funil_sql = "\n                  ".join(filtros_funil)
 
             cursor.execute(f"""
-                SELECT tid, par1, par2, par3, etapa, etapa_label, pagina_url, created_at
+                SELECT tid, par1, par2, par3, etapa, etapa_label, pagina_url, metadata, created_at
                 FROM ddm_ddmadv.ddmpay_funil_eventos
                 WHERE DATE(created_at) BETWEEN %s AND %s
                   {filtros_funil_sql}
@@ -1022,6 +1300,18 @@ def api_metricas():
             event_rows.extend(cursor.fetchall())
         except Exception as e:
             print(f"[FUNIL EVENTOS] usando eventos locais: {e}")
+
+        def metadata_dict(ev):
+            metadata = ev.get('metadata') or {}
+            if isinstance(metadata, dict):
+                return metadata
+            if isinstance(metadata, str):
+                try:
+                    parsed = json.loads(metadata)
+                    return parsed if isinstance(parsed, dict) else {}
+                except Exception:
+                    return {}
+            return {}
 
         if canal_filtro or campanha_filtro:
             event_rows = [
@@ -1143,6 +1433,93 @@ def api_metricas():
             except Exception as e:
                 print(f"[IA ACESSOS] nao foi possivel cruzar etapas: {e}")
 
+        # Link unico de campanha: o CPF nao vem no clique.
+        # Atribuimos a etapa pelo sistema + janela de tempo apos o clique.
+        campaign_clicks = []
+        for ev in event_rows:
+            if ev.get('etapa') != 'click':
+                continue
+            metadata = metadata_dict(ev)
+            if metadata.get('tipo_link') != 'campanha':
+                continue
+            sistema = normalizar_sistema(metadata.get('sistema'))
+            campanha = (ev.get('par3') or '').strip()
+            if not sistema or not campanha or campanha in campanhas_excluidas:
+                continue
+            data_clique = as_datetime(ev.get('created_at'))
+            if not data_clique:
+                continue
+            try:
+                janela_minutos = int(metadata.get('janela_minutos') or 30)
+            except Exception:
+                janela_minutos = 30
+            campaign_clicks.append({
+                'click': ev,
+                'sistema': sistema,
+                'campanha': campanha,
+                'canal': (ev.get('par2') or '').strip().lower(),
+                'inicio': data_clique,
+                'fim': data_clique + timedelta(minutes=max(1, min(janela_minutos, 1440))),
+            })
+
+        if campaign_clicks:
+            try:
+                sistemas = sorted({item['sistema'] for item in campaign_clicks})
+                placeholders = ','.join(['%s'] * len(sistemas))
+                cursor.execute(f"""
+                    SELECT documento, data, sistema, acao
+                    FROM ddm_ddmadv.IA_acessos
+                    WHERE DATE(data) BETWEEN %s AND %s
+                      AND sistema IN ({placeholders})
+                      AND acao IN ('pesquisa', 'retell_fase1', 'simulacao', 'simulacao_meuacordo', 'acordo')
+                    ORDER BY data ASC
+                """, [data_inicio, data_fim, *sistemas])
+                mapa_ia_campanha = {
+                    'pesquisa': ('cpf_submit', 'CPF pesquisado no sistema'),
+                    'retell_fase1': ('cpf_submit', 'CPF pesquisado no sistema'),
+                    'simulacao': ('payment_view', 'Visualizou simulacao de acordo'),
+                    'simulacao_meuacordo': ('payment_view', 'Visualizou simulacao de acordo'),
+                    'acordo': ('payment_start', 'Iniciou acordo'),
+                }
+                clicks_por_sistema = {}
+                for item in campaign_clicks:
+                    clicks_por_sistema.setdefault(item['sistema'], []).append(item)
+                vistos_campanha = set()
+                for row in cursor.fetchall():
+                    documento = str(row.get('documento') or '').strip()
+                    data_evento = as_datetime(row.get('data'))
+                    sistema = normalizar_sistema(row.get('sistema'))
+                    acao = (row.get('acao') or '').strip()
+                    etapa, etapa_label = mapa_ia_campanha.get(acao, (None, None))
+                    if not documento or not data_evento or not etapa:
+                        continue
+                    for item in clicks_por_sistema.get(sistema, []):
+                        if not (item['inicio'] <= data_evento <= item['fim']):
+                            continue
+                        click_ev = item['click']
+                        dedup_key = (click_ev.get('tid'), documento, etapa)
+                        if dedup_key in vistos_campanha:
+                            continue
+                        vistos_campanha.add(dedup_key)
+                        event_rows.append({
+                            'tid': click_ev.get('tid'),
+                            'par1': documento,
+                            'par2': click_ev.get('par2'),
+                            'par3': click_ev.get('par3'),
+                            'etapa': etapa,
+                            'etapa_label': etapa_label,
+                            'pagina_url': '',
+                            'metadata': {
+                                'tipo_link': 'campanha',
+                                'sistema': sistema,
+                                'codigo': metadata_dict(click_ev).get('codigo'),
+                                'origem_ia': acao,
+                            },
+                            'created_at': data_evento,
+                        })
+            except Exception as e:
+                print(f"[IA CAMPANHAS] nao foi possivel atribuir campanhas por sistema: {e}")
+
         ordem_etapas = {
             'click': 1,
             'cpf_view': 2,
@@ -1153,7 +1530,13 @@ def api_metricas():
         }
 
         def key_evento(ev):
-            return ev.get('tid') or ev.get('par1') or ''
+            par1_ev = (ev.get('par1') or '').strip()
+            if par1_ev:
+                return par1_ev
+            metadata = metadata_dict(ev)
+            if metadata.get('visitor_key'):
+                return f"visitante:{metadata.get('visitor_key')}"
+            return ev.get('tid') or ''
 
         campanhas_eventos = {}
         ultimos_por_cliente = {}

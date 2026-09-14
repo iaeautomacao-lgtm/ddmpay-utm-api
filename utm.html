@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerador de Links Rastreáveis — Grupo DDM</title>
-    <meta name="description" content="Crie e gerencie parâmetros de rastreamento (par1, par2, par3) integrados ao ecossistema DDMPay e n8n.">
+    <meta name="description" content="Crie e gerencie links de rastreamento por campanha integrados ao ecossistema DDMPay e n8n.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -34,8 +34,8 @@
 
         <!-- Abas de Navegação -->
         <div class="tabs-container">
-            <button type="button" class="tab-btn active" data-target="tab-individual">Criação Individual</button>
-            <button type="button" class="tab-btn" data-target="tab-lote">Criação em Lote</button>
+            <button type="button" class="tab-btn active" data-target="tab-individual">Criar Campanha</button>
+            <button type="button" class="tab-btn" data-target="tab-lote">Criar em Lote</button>
         </div>
 
         <!-- Main Wrapper -->
@@ -75,7 +75,7 @@
                     </div>
                 </div>
 
-                <!-- Formulário Individual com as Regras par1, par2, par3 -->
+                <!-- Formulario de campanha com link unico -->
                 <div class="panel form-panel">
                     <form id="individual-form" class="grid-form">
                         <div class="field-group" style="grid-column: span 2;">
@@ -84,8 +84,24 @@
                         </div>
                         
                         <div class="field-group">
-                            <label for="ind-source">Identificador do Aluno (par1) <span class="req">*</span></label>
-                            <input type="text" id="ind-source" placeholder="Ex: CPF ou Matrícula" required>
+                            <label for="ind-source">Sistema / Instituição <span class="req">*</span></label>
+                            <select id="ind-source" required>
+                                <option value="">Selecione o sistema</option>
+                                <option value="anima">Anima</option>
+                                <option value="anima2">Anima 2</option>
+                                <option value="avenida">Avenida</option>
+                                <option value="cruzeirodosul">Cruzeiro do Sul</option>
+                                <option value="datora">Datora</option>
+                                <option value="fiergs">FIERGS</option>
+                                <option value="neon">Neon</option>
+                                <option value="ubec">UBEC</option>
+                                <option value="vero">Vero</option>
+                                <option value="vero2">Vero 2</option>
+                                <option value="verob2b">Vero B2B</option>
+                                <option value="yduqs">YDUQS</option>
+                                <option value="ddm">DDM Cobranca</option>
+                                <option value="fumec">FUMEC</option>
+                            </select>
                         </div>
 
                         <div class="field-group">
@@ -99,7 +115,7 @@
                         </div>
 
                         <div class="field-group" style="grid-column: span 2;">
-                            <label for="ind-campaign">Campanha / Lote (par3) <span class="req">*</span></label>
+                            <label for="ind-campaign">Campanha / Lote <span class="req">*</span></label>
                             <input type="text" id="ind-campaign" placeholder="Ex: cobranca_maio_lote1" required>
                         </div>
                     </form>
@@ -165,7 +181,7 @@
                     </div>
                 </div>
 
-                <!-- Formulário em Lote (Áreas de Texto) adaptado para par1, par2, par3 -->
+                <!-- Formulario em lote para gerar links unicos por sistema/campanha -->
                 <div class="panel form-panel">
                     <form id="batch-form" class="grid-form-batch">
                         
@@ -176,9 +192,9 @@
                         </div>
 
                         <div class="field-group">
-                            <label for="batch-sources">Identificadores dos Alunos (par1) <span class="req">*</span></label>
-                            <textarea id="batch-sources" placeholder="CPF_ALUNO1&#10;CPF_ALUNO2&#10;CPF_ALUNO3" required></textarea>
-                            <span class="field-hint">Insira os CPFs ou Matrículas (um por linha).</span>
+                            <label for="batch-sources">Sistemas / Instituições <span class="req">*</span></label>
+                            <textarea id="batch-sources" placeholder="ddm&#10;cruzeirodosul&#10;yduqs" required></textarea>
+                            <span class="field-hint">Insira um sistema por linha. Ex.: ddm, cruzeirodosul, yduqs.</span>
                         </div>
 
                         <div class="field-group">
@@ -193,7 +209,7 @@
                         </div>
 
                         <div class="field-group" style="grid-column: span 2;">
-                            <label for="batch-campaigns">Campanhas / Lotes (par3) <span class="req">*</span></label>
+                            <label for="batch-campaigns">Campanhas / Lotes <span class="req">*</span></label>
                             <textarea id="batch-campaigns" placeholder="cobranca_maio_lote1&#10;cobranca_maio_lote2" required></textarea>
                             <span class="field-hint">Insira os nomes dos lotes de campanha (um por linha).</span>
                         </div>
