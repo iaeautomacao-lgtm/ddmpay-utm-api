@@ -1434,7 +1434,7 @@ def api_metricas():
                 print(f"[IA ACESSOS] nao foi possivel cruzar etapas: {e}")
 
         # Link unico de campanha: o CPF nao vem no clique.
-        # Atribuimos a etapa pelo sistema + janela de tempo apos o clique.
+        # So atribuimos CPF quando o proprio log do sistema preserva campanha/tid.
         campaign_clicks = []
         for ev in event_rows:
             if ev.get('etapa') != 'click':
@@ -1467,7 +1467,7 @@ def api_metricas():
                 sistemas = sorted({item['sistema'] for item in campaign_clicks})
                 placeholders = ','.join(['%s'] * len(sistemas))
                 cursor.execute(f"""
-                    SELECT documento, data, sistema, acao
+                    SELECT documento, data, sistema, acao, retorno
                     FROM ddm_ddmadv.IA_acessos
                     WHERE DATE(data) BETWEEN %s AND %s
                       AND sistema IN ({placeholders})
@@ -1485,6 +1485,19 @@ def api_metricas():
                 for item in campaign_clicks:
                     clicks_por_sistema.setdefault(item['sistema'], []).append(item)
                 vistos_campanha = set()
+
+                def retorno_vinculado_ao_clique(row, click_ev):
+                    retorno = str(row.get('retorno') or '').lower()
+                    campanha = str(click_ev.get('par3') or '').strip().lower()
+                    tid = str(click_ev.get('tid') or '').strip().lower()
+                    if not retorno:
+                        return False
+                    return bool(
+                        (tid and tid in retorno)
+                        or (campanha and campanha in retorno)
+                        or (campanha and quote_plus(campanha).lower() in retorno)
+                    )
+
                 for row in cursor.fetchall():
                     documento = str(row.get('documento') or '').strip()
                     data_evento = as_datetime(row.get('data'))
@@ -1497,6 +1510,8 @@ def api_metricas():
                         if not (item['inicio'] <= data_evento <= item['fim']):
                             continue
                         click_ev = item['click']
+                        if not retorno_vinculado_ao_clique(row, click_ev):
+                            continue
                         dedup_key = (click_ev.get('tid'), documento, etapa)
                         if dedup_key in vistos_campanha:
                             continue
