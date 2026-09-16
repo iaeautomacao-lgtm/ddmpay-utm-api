@@ -1434,7 +1434,7 @@ def api_metricas():
                 print(f"[IA ACESSOS] nao foi possivel cruzar etapas: {e}")
 
         # Link unico de campanha: o CPF nao vem no clique.
-        # So atribuimos CPF quando o proprio log do sistema preserva campanha/tid.
+        # So atribuimos CPF quando o proprio log do sistema preserva o tid.
         campaign_clicks = []
         for ev in event_rows:
             if ev.get('etapa') != 'click':
@@ -1488,15 +1488,8 @@ def api_metricas():
 
                 def retorno_vinculado_ao_clique(row, click_ev):
                     retorno = str(row.get('retorno') or '').lower()
-                    campanha = str(click_ev.get('par3') or '').strip().lower()
                     tid = str(click_ev.get('tid') or '').strip().lower()
-                    if not retorno:
-                        return False
-                    return bool(
-                        (tid and tid in retorno)
-                        or (campanha and campanha in retorno)
-                        or (campanha and quote_plus(campanha).lower() in retorno)
-                    )
+                    return bool(tid and tid in retorno)
 
                 for row in cursor.fetchall():
                     documento = str(row.get('documento') or '').strip()
